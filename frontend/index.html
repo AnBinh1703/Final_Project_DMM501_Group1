@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fraud Detection System - Demo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 600px;
+            width: 100%;
+            padding: 40px;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        
+        .header h1 {
+            color: #333;
+            font-size: 28px;
+            margin-bottom: 8px;
+        }
+        
+        .header p {
+            color: #666;
+            font-size: 14px;
+        }
+        
+        .form-section {
+            margin-bottom: 30px;
+        }
+        
+        .form-section h2 {
+            color: #333;
+            font-size: 16px;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e8e8e8;
+        }
+        
+        .input-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .form-input {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .form-input label {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+        
+        .form-input input {
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.2s;
+        }
+        
+        .form-input input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        button {
+            flex: 1;
+            padding: 12px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .predict-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .predict-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+        
+        .predict-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .sample-btn {
+            background: #f0f0f0;
+            color: #333;
+        }
+        
+        .sample-btn:hover {
+            background: #e8e8e8;
+        }
+        
+        .result-section {
+            display: none;
+            background: #f9f9f9;
+            border-radius: 8px;
+            padding: 20px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .result-section.show {
+            display: block;
+        }
+        
+        .result-section h3 {
+            color: #333;
+            margin-bottom: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .result-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #e8e8e8;
+        }
+        
+        .result-item:last-child {
+            border-bottom: none;
+        }
+        
+        .result-label {
+            color: #666;
+            font-size: 14px;
+        }
+        
+        .result-value {
+            font-weight: 600;
+            color: #333;
+            font-size: 14px;
+        }
+        
+        .fraud-badge {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .fraud-badge.fraud {
+            background: #fee;
+            color: #c33;
+        }
+        
+        .fraud-badge.legitimate {
+            background: #efe;
+            color: #3c3;
+        }
+        
+        .probability-bar {
+            background: #e8e8e8;
+            border-radius: 4px;
+            height: 8px;
+            margin-top: 4px;
+            overflow: hidden;
+        }
+        
+        .probability-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            border-radius: 4px;
+        }
+        
+        .error-section {
+            display: none;
+            background: #fee;
+            color: #c33;
+            border: 1px solid #fcc;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+        
+        .error-section.show {
+            display: block;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            color: #667eea;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+        
+        .loading.show {
+            display: block;
+        }
+        
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #667eea;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 8px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 12px;
+            background: #f0f0f0;
+            border-radius: 6px;
+            font-size: 12px;
+            color: #666;
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #3c3;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔒 Fraud Detection System</h1>
+            <p>Real-time fraud prediction for financial transactions</p>
+        </div>
+        
+        <div class="status-indicator" id="statusIndicator">
+            <span class="status-dot"></span>
+            <span id="statusText">Connecting...</span>
+        </div>
+        
+        <div class="form-section">
+            <h2>Transaction Details</h2>
+            
+            <div class="form-section" style="margin-bottom: 15px;">
+                <div class="form-input">
+                    <label>Time (seconds from start)</label>
+                    <input type="number" id="timeInput" value="0" step="1" min="0">
+                </div>
+            </div>
+            
+            <div class="form-section" style="margin-bottom: 15px;">
+                <div class="form-input">
+                    <label>Amount ($)</label>
+                    <input type="number" id="amountInput" value="149.62" step="0.01" min="0">
+                </div>
+            </div>
+            
+            <div class="form-section" style="margin-bottom: 15px;">
+                <label>Principal Component Features (V1-V28)</label>
+                <textarea id="featureInput" style="width: 100%; height: 120px; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-family: monospace; font-size: 12px;" placeholder="Enter 28 comma-separated values for V1-V28"></textarea>
+            </div>
+        </div>
+        
+        <div class="button-group">
+            <button class="sample-btn" onclick="loadSampleTransaction()">📋 Load Sample</button>
+            <button class="predict-btn" id="predictBtn" onclick="makePrediction()">🔍 Predict Fraud</button>
+        </div>
+        
+        <div class="error-section" id="errorSection"></div>
+        <div class="loading" id="loadingIndicator"><span class="spinner"></span>Processing...</div>
+        
+        <div class="result-section" id="resultSection">
+            <h3>Prediction Result</h3>
+            <div class="result-item">
+                <span class="result-label">Fraud Status</span>
+                <span class="fraud-badge" id="fraudBadge"></span>
+            </div>
+            <div class="result-item">
+                <span class="result-label">Fraud Probability</span>
+                <div style="flex: 1; margin-left: 20px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                        <span class="result-value" id="probabilityValue">0%</span>
+                    </div>
+                    <div class="probability-bar">
+                        <div class="probability-fill" id="probabilityBar" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="result-item">
+                <span class="result-label">Decision Threshold</span>
+                <span class="result-value" id="thresholdValue">0.14</span>
+            </div>
+            <div class="result-item">
+                <span class="result-label">Model Version</span>
+                <span class="result-value" id="modelVersion">-</span>
+            </div>
+            <div class="result-item">
+                <span class="result-label">Request ID</span>
+                <span class="result-value" id="requestId" style="font-family: monospace; font-size: 12px;">-</span>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const API_URL = 'http://localhost:8000';
+        
+        // Check API health on load
+        window.addEventListener('DOMContentLoaded', checkApiHealth);
+        
+        async function checkApiHealth() {
+            try {
+                const response = await fetch(`${API_URL}/health`);
+                const data = await response.json();
+                document.getElementById('statusText').textContent = 'API Ready';
+                document.getElementById('statusIndicator').style.opacity = '1';
+            } catch (error) {
+                document.getElementById('statusText').textContent = 'API Unreachable';
+                document.getElementById('statusIndicator').style.opacity = '0.5';
+            }
+        }
+        
+        function loadSampleTransaction() {
+            // Sample legitimate transaction from the dataset
+            document.getElementById('timeInput').value = '0';
+            document.getElementById('amountInput').value = '149.62';
+            // Real sample features (V1-V28)
+            const sampleFeatures = '-1.36,-0.07,2.54,1.38,-0.34,0.46,0.24,0.10,0.36,0.09,-0.55,-0.62,-0.99,-0.31,1.47,-0.47,0.21,0.03,0.40,0.25,-0.02,0.28,-0.11,0.07,0.13,-0.19,0.13,-0.02';
+            document.getElementById('featureInput').value = sampleFeatures;
+        }
+        
+        async function makePrediction() {
+            const btn = document.getElementById('predictBtn');
+            const loading = document.getElementById('loadingIndicator');
+            const errorSection = document.getElementById('errorSection');
+            const resultSection = document.getElementById('resultSection');
+            
+            // Clear previous results
+            errorSection.classList.remove('show');
+            resultSection.classList.remove('show');
+            
+            // Validate inputs
+            const timeValue = parseFloat(document.getElementById('timeInput').value);
+            const amountValue = parseFloat(document.getElementById('amountInput').value);
+            const featureValues = document.getElementById('featureInput').value.split(',').map(v => parseFloat(v.trim()));
+            
+            if (isNaN(timeValue) || isNaN(amountValue) || featureValues.length !== 28 || featureValues.some(isNaN)) {
+                showError('Please enter valid values: Time, Amount, and 28 feature values (V1-V28)');
+                return;
+            }
+            
+            // Construct feature vector: [Time, V1-V28, Amount]
+            const features = [timeValue, ...featureValues, amountValue];
+            
+            if (features.length !== 30) {
+                showError(`Expected 30 features, got ${features.length}`);
+                return;
+            }
+            
+            btn.disabled = true;
+            loading.classList.add('show');
+            
+            try {
+                const response = await fetch(`${API_URL}/predict`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ features: features })
+                });
+                
+                loading.classList.remove('show');
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    showError(error.detail || 'Prediction failed');
+                    return;
+                }
+                
+                const result = await response.json();
+                displayResult(result);
+                
+            } catch (error) {
+                loading.classList.remove('show');
+                showError(`Error: ${error.message}`);
+            } finally {
+                btn.disabled = false;
+            }
+        }
+        
+        function showError(message) {
+            const errorSection = document.getElementById('errorSection');
+            errorSection.textContent = message;
+            errorSection.classList.add('show');
+        }
+        
+        function displayResult(result) {
+            const resultSection = document.getElementById('resultSection');
+            const probability = result.fraud_probability;
+            const isFraud = result.fraud_label === 1;
+            const probabilityPercent = (probability * 100).toFixed(2);
+            
+            // Update badge
+            const badge = document.getElementById('fraudBadge');
+            badge.textContent = isFraud ? '⚠️ FRAUD' : '✓ LEGITIMATE';
+            badge.className = `fraud-badge ${isFraud ? 'fraud' : 'legitimate'}`;
+            
+            // Update probability bar and value
+            document.getElementById('probabilityValue').textContent = `${probabilityPercent}%`;
+            document.getElementById('probabilityBar').style.width = Math.min(probability * 100, 100) + '%';
+            
+            // Update other fields
+            document.getElementById('thresholdValue').textContent = result.threshold.toFixed(4);
+            document.getElementById('modelVersion').textContent = result.model_version;
+            document.getElementById('requestId').textContent = result.request_id.substring(0, 20) + '...';
+            
+            resultSection.classList.add('show');
+        }
+        
+        // Load sample on startup
+        window.addEventListener('DOMContentLoaded', loadSampleTransaction);
+    </script>
+</body>
+</html>

@@ -1,15 +1,63 @@
 {
   "annotations": {"list": []},
+  "description": "Real-time monitoring of fraud detection model serving and API metrics",
   "editable": true,
   "graphTooltip": 0,
-  "panels": [],
+  "panels": [
+    {
+      "datasource": {"type": "prometheus"},
+      "fieldConfig": {"defaults": {"color": {"mode": "palette-classic"}}},
+      "title": "API Requests Per Second",
+      "targets": [
+        {
+          "expr": "rate(api_requests_total[1m])",
+          "refId": "A"
+        }
+      ],
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus"},
+      "title": "Request Latency (95th percentile)",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, rate(api_request_latency_seconds_bucket[1m]))",
+          "refId": "A"
+        }
+      ],
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus"},
+      "title": "Average Fraud Score",
+      "targets": [
+        {
+          "expr": "fraud_scores_sum_total / fraud_scores_count_total",
+          "refId": "A"
+        }
+      ],
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus"},
+      "title": "Fraud Predictions by Label",
+      "targets": [
+        {
+          "expr": "fraud_predictions_total",
+          "refId": "A"
+        }
+      ],
+      "type": "piechart"
+    }
+  ],
+  "refresh": "10s",
   "schemaVersion": 39,
   "style": "dark",
   "tags": ["fraud", "api"],
   "templating": {"list": []},
-  "time": {"from": "now-15m", "to": "now"},
+  "time": {"from": "now-1h", "to": "now"},
   "timepicker": {},
   "timezone": "browser",
-  "title": "Fraud API (Placeholder)",
+  "title": "Fraud Detection API Monitoring",
   "version": 1
 }

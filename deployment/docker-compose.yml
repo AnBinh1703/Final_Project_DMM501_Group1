@@ -4,13 +4,34 @@ services:
       context: ..
       dockerfile: deployment/api/Dockerfile
     environment:
-      MODEL_PATH: /app/artifacts/model.joblib
-      FRAUD_THRESHOLD: "0.5"
-      MODEL_VERSION: local
+      MODEL_PATH: /app/artifacts/models/improved_lightgbm.joblib
+      FRAUD_THRESHOLD: "0.14"
+      MODEL_VERSION: lightgbm-production-v1
     volumes:
       - ../artifacts:/app/artifacts
     ports:
       - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: deployment/frontend/Dockerfile
+    ports:
+      - "8080:8080"
+    depends_on:
+      - api
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/index.html"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
 
   mlflow:
     build:
@@ -31,6 +52,9 @@ services:
     image: prom/prometheus:v2.54.1
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
     ports:
       - "9090:9090"
     depends_on:
@@ -38,13 +62,18 @@ services:
 
   grafana:
     image: grafana/grafana:11.1.0
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
     ports:
       - "3000:3000"
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
     depends_on:
       - prometheus
 
 volumes:
   mlflow_data:
+  grafana_data:

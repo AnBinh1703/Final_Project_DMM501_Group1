@@ -1,0 +1,27 @@
+# Core
+numpy
+pandas
+scikit-learn
+lightgbm
+joblib
+
+# API
+fastapi
+uvicorn[standard]
+pydantic
+
+# Tracking
+mlflow
+
+# Monitoring
+prometheus-client
+
+# Explainability
+shap
+
+# Testing
+pytest
+httpx
+
+# Utilities
+python-dotenv

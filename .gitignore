@@ -8,4 +8,7 @@ mlruns/
 *.log
 .DS_Store
 .ipynb_checkpoints/
-data/raw/creditcard.csv
+# Large data files - keep only schema/readme
+data/**/*.csv
+!data/.keep
+data/*.csv

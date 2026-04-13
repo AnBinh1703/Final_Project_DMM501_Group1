@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import os
+
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from starlette.responses import Response
 
@@ -15,6 +18,18 @@ from src.monitoring.metrics import (
 from src.utils.ids import new_request_id
 
 app = FastAPI(title="Fraud Detection API", version="0.1.0")
+
+_default_origins = ["http://localhost:8080", "http://127.0.0.1:8080"]
+_env_origins = os.getenv("CORS_ALLOW_ORIGINS", "").strip()
+_cors_origins = [o.strip() for o in _env_origins.split(",") if o.strip()] if _env_origins else _default_origins
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_cors_origins,
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 _loaded = maybe_load_model_from_env()
 

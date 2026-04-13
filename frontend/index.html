@@ -25,7 +25,7 @@
             background: white;
             border-radius: 12px;
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-            max-width: 600px;
+            max-width: 1100px;
             width: 100%;
             padding: 40px;
         }
@@ -261,6 +261,39 @@
             font-size: 12px;
             color: #666;
         }
+
+        .api-config {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 12px 0 22px 0;
+            flex-wrap: wrap;
+        }
+
+        .api-config label {
+            font-size: 12px;
+            color: #666;
+            font-weight: 600;
+        }
+
+        .api-config input {
+            flex: 1;
+            min-width: 240px;
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 13px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        }
+
+        .api-config button {
+            flex: 0 0 auto;
+            padding: 10px 14px;
+            border-radius: 6px;
+            background: #f0f0f0;
+            color: #333;
+            font-weight: 700;
+        }
         
         .status-dot {
             width: 8px;
@@ -274,6 +307,327 @@
             0%, 100% { opacity: 1; }
             50% { opacity: 0.5; }
         }
+        
+        /* Streaming Demo Styles */
+        .demo-section {
+            background: #f5f5f5;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            border: 2px solid #667eea;
+        }
+        
+        .demo-section h2 {
+            color: #667eea;
+            font-size: 18px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .demo-controls-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .demo-btn {
+            padding: 10px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .demo-btn.stream {
+            background: #4CAF50;
+            color: white;
+        }
+        
+        .demo-btn.stream:hover:not(:disabled) {
+            background: #45a049;
+            transform: translateY(-2px);
+        }
+        
+        .demo-btn.stream:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+        }
+        
+        .demo-btn.random {
+            background: #2196F3;
+            color: white;
+        }
+        
+        .demo-btn.random:hover:not(:disabled) {
+            background: #0b7dda;
+            transform: translateY(-2px);
+        }
+        
+        .demo-btn.random:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+        }
+        
+        .demo-btn.control {
+            background: #ff9800;
+            color: white;
+        }
+        
+        .demo-btn.control:hover:not(:disabled) {
+            background: #e68900;
+        }
+        
+        .demo-btn.control:disabled {
+            background: #cccccc;
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .demo-speed-control {
+            display: flex;
+            gap: 5px;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .demo-speed-control label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .demo-speed-btn {
+            padding: 6px 10px;
+            border: 2px solid #ddd;
+            background: white;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .demo-speed-btn:hover {
+            border-color: #667eea;
+        }
+        
+        .demo-speed-btn.speed-active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+        
+        .demo-counters {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+            gap: 10px;
+            margin-bottom: 20px;
+            background: white;
+            padding: 15px;
+            border-radius: 6px;
+        }
+        
+        .demo-counter {
+            text-align: center;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            padding: 10px;
+            background: white;
+        }
+        
+        .demo-counter-label {
+            font-size: 11px;
+            color: #999;
+            font-weight: 600;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+        }
+        
+        .demo-counter-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .demo-counter.fraud .demo-counter-value {
+            color: #d32f2f;
+        }
+        
+        .demo-counter.legit .demo-counter-value {
+            color: #388e3c;
+        }
+        
+        .demo-feed-container {
+            background: white;
+            border-radius: 6px;
+            border: 1px solid #e0e0e0;
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 10px;
+        }
+        
+        .demo-feed {
+            display: flex;
+            flex-direction: column-reverse;
+        }
+        
+        .demo-feed-item {
+            display: grid;
+            grid-template-columns: 64px 72px 66px 64px 44px 1fr;
+            gap: 10px;
+            padding: 8px 12px;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 11px;
+            border-left: 3px solid #ccc;
+        }
+        
+        .demo-feed-item:hover {
+            background: #f9f9f9;
+        }
+        
+        .demo-feed-item.demo-fraud {
+            background: #ffebee;
+            border-left-color: #d32f2f;
+        }
+        
+        .demo-feed-item.demo-legitimate {
+            background: #e8f5e9;
+            border-left-color: #388e3c;
+        }
+        
+        .demo-feed-time {
+            font-size: 10px;
+            color: #999;
+        }
+        
+        .demo-feed-amount {
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .demo-feed-prob {
+            font-weight: 600;
+            color: #667eea;
+        }
+        
+        .demo-feed-label {
+            font-weight: 700;
+            text-align: center;
+        }
+        
+        .demo-feed-item.demo-fraud .demo-feed-label {
+            color:#d32f2f;
+        }
+        
+        .demo-feed-item.demo-legitimate .demo-feed-label {
+            color: #388e3c;
+        }
+        
+        .demo-feed-latency {
+            font-size: 10px;
+            color: #666;
+            text-align: right;
+        }
+        
+        .demo-feed-empty {
+            text-align: center;
+            padding: 30px 20px;
+            color: #999;
+            font-size: 13px;
+        }
+
+        .demo-feed-header {
+            display: grid;
+            grid-template-columns: 64px 72px 66px 64px 44px 1fr;
+            gap: 10px;
+            padding: 8px 12px;
+            border-bottom: 1px solid #eee;
+            font-size: 11px;
+            color: #64748b;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            background: #fafafa;
+        }
+
+        .demo-feed-request {
+            font-size: 10px;
+            color: #555;
+            text-align: right;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .demo-grid {
+            display: grid;
+            grid-template-columns: 1.1fr 0.9fr;
+            gap: 16px;
+            align-items: start;
+            margin-top: 14px;
+        }
+
+        @media (max-width: 980px) {
+            .demo-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .demo-panel {
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e6e6e6;
+            padding: 14px;
+        }
+
+        .demo-panel h3 {
+            font-size: 13px;
+            color: #333;
+            margin-bottom: 10px;
+            font-weight: 800;
+            letter-spacing: 0.2px;
+            text-transform: uppercase;
+        }
+
+        .demo-banner {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 12px;
+            border-radius: 8px;
+            background: #eef2ff;
+            border: 1px solid #dbe3ff;
+            margin: 12px 0;
+            font-size: 12px;
+            color: #334155;
+            flex-wrap: wrap;
+        }
+
+        .demo-banner .mono {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        }
+
+        .demo-error {
+            background: #fff1f2;
+            border-color: #fecdd3;
+            color: #7f1d1d;
+        }
+
+        .demo-chart {
+            width: 100%;
+            height: 220px;
+            border: 1px solid #eee;
+            border-radius: 6px;
+            display: block;
+            background: linear-gradient(180deg, #ffffff 0%, #fafafa 100%);
+        }
     </style>
 </head>
 <body>
@@ -286,6 +640,12 @@
         <div class="status-indicator" id="statusIndicator">
             <span class="status-dot"></span>
             <span id="statusText">Connecting...</span>
+        </div>
+
+        <div class="api-config">
+            <label for="apiUrlInput">API Base URL</label>
+            <input id="apiUrlInput" type="text" value="http://localhost:8000" spellcheck="false" />
+            <button type="button" id="applyApiUrlBtn">Apply</button>
         </div>
         
         <div class="form-section">
@@ -349,20 +709,155 @@
                 <span class="result-value" id="requestId" style="font-family: monospace; font-size: 12px;">-</span>
             </div>
         </div>
+        
+        <!-- Real-Time Streaming Demo Section -->
+        <div class="demo-section">
+            <h2>🎬 Real-Time Streaming Demo</h2>
+
+            <div class="demo-banner" id="demoStatusBanner">
+                <div>
+                    <strong>Status:</strong> <span id="demoStreamStatus">idle</span>
+                    <span style="margin-left: 10px;"><strong>Mode:</strong> <span id="demoStreamMode">dataset</span></span>
+                    <span style="margin-left: 10px;"><strong>Model:</strong> <span class="mono" id="demoModelVersion">-</span></span>
+                </div>
+                <div class="mono">/predict expects 30 features: [Time, V1..V28, Amount]</div>
+            </div>
+
+            <div class="demo-banner demo-error" id="demoErrorBanner" style="display:none;">
+                <div><strong>Streaming error:</strong> <span id="demoErrorText">-</span></div>
+                <div class="mono">Check API base URL and /health</div>
+            </div>
+            
+            <!-- Stream Controls -->
+            <div class="demo-controls-group">
+                <button class="demo-btn stream" id="startDatasetStreamBtn">▶️ Start Dataset Stream</button>
+                <button class="demo-btn random" id="startRandomStreamBtn">🎲 Start Random Stream</button>
+                <button class="demo-btn control" id="pauseStreamBtn" disabled>⏸️ Pause</button>
+                <button class="demo-btn control stop-btn" id="stopStreamBtn" disabled>⏹️ Stop</button>
+                <button class="demo-btn control" id="resetStreamBtn">🔄 Reset</button>
+            </div>
+            
+            <!-- Speed Control -->
+            <div class="demo-speed-control">
+                <label>Speed:</label>
+                <button class="demo-speed-btn speed-active" data-stream-speed="1">1x</button>
+                <button class="demo-speed-btn" data-stream-speed="2">2x</button>
+                <button class="demo-speed-btn" data-stream-speed="5">5x Rapid</button>
+            </div>
+            
+            <!-- Summary Counters -->
+            <div class="demo-counters">
+                <div class="demo-counter">
+                    <div class="demo-counter-label">Total</div>
+                    <div class="demo-counter-value" id="demoTotalCount">0</div>
+                </div>
+                <div class="demo-counter fraud">
+                    <div class="demo-counter-label">Fraud</div>
+                    <div class="demo-counter-value" id="demoFraudCount">0</div>
+                </div>
+                <div class="demo-counter legit">
+                    <div class="demo-counter-label">Legit</div>
+                    <div class="demo-counter-value" id="demoLegitCount">0</div>
+                </div>
+                <div class="demo-counter">
+                    <div class="demo-counter-label">Fraud Rate</div>
+                    <div class="demo-counter-value" id="demoFraudRate">0%</div>
+                </div>
+                <div class="demo-counter">
+                    <div class="demo-counter-label">Avg Latency</div>
+                    <div class="demo-counter-value" id="demoAvgLatency">0 ms</div>
+                </div>
+                <div class="demo-counter">
+                    <div class="demo-counter-label">Avg Prob</div>
+                    <div class="demo-counter-value" id="demoAvgProb">0%</div>
+                </div>
+            </div>
+
+            <div class="demo-grid">
+                <div class="demo-panel">
+                    <h3>Probability Over Time</h3>
+                    <canvas class="demo-chart" id="demoProbChart" width="900" height="220"></canvas>
+                    <div style="margin-top: 8px; font-size: 12px; color: #64748b;">
+                        Latest threshold: <span class="mono" id="demoLastThreshold">-</span> • Latest probability: <span class="mono" id="demoLastProb">-</span>
+                    </div>
+                </div>
+
+                <div class="demo-panel">
+                    <h3>Transaction Feed</h3>
+                    <div class="demo-feed-header">
+                        <div>Time</div>
+                        <div>Amount</div>
+                        <div>Prob</div>
+                        <div>Label</div>
+                        <div>Thr</div>
+                        <div>Req ID</div>
+                    </div>
+                    <div class="demo-feed-container">
+                        <div class="demo-feed" id="demoLiveFeed">
+                            <div class="demo-feed-empty">Stream not started</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
     
     <script>
-        const API_URL = 'http://localhost:8000';
+        (function initAppConfig() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const paramApi = urlParams.get('api');
+            const storedApi = localStorage.getItem('fraud_api_url');
+            const defaultApi = 'http://localhost:8000';
+
+            window.APP_CONFIG = {
+                apiUrl: (paramApi || storedApi || defaultApi).trim()
+            };
+        })();
+
+        function getApiUrl() {
+            return (window.APP_CONFIG && window.APP_CONFIG.apiUrl)
+                ? window.APP_CONFIG.apiUrl
+                : 'http://localhost:8000';
+        }
+
+        function applyApiUrlFromInput() {
+            const el = document.getElementById('apiUrlInput');
+            const next = (el && el.value ? el.value : '').trim();
+            if (!next) return;
+            window.APP_CONFIG.apiUrl = next;
+            localStorage.setItem('fraud_api_url', next);
+            checkApiHealth();
+        }
         
-        // Check API health on load
-        window.addEventListener('DOMContentLoaded', checkApiHealth);
+        // Check API health on load (and keep it updated)
+        window.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('apiUrlInput').value = getApiUrl();
+            document.getElementById('applyApiUrlBtn').addEventListener('click', applyApiUrlFromInput);
+            document.getElementById('apiUrlInput').addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') applyApiUrlFromInput();
+            });
+
+            checkApiHealth();
+            setInterval(checkApiHealth, 5000);
+        });
         
         async function checkApiHealth() {
             try {
-                const response = await fetch(`${API_URL}/health`);
+                const response = await fetch(`${getApiUrl()}/health`);
                 const data = await response.json();
-                document.getElementById('statusText').textContent = 'API Ready';
+
+                const modelLoaded = Boolean(data && data.model_loaded);
+                const expectedFeatures = data && typeof data.expected_features === 'number' ? data.expected_features : null;
+                const modelVersion = data && data.model_version ? String(data.model_version) : '-';
+
+                document.getElementById('statusText').textContent =
+                    modelLoaded
+                        ? `API Ready • model_loaded=true • expected_features=${expectedFeatures ?? '-'} • ${modelVersion}`
+                        : `API Ready • model_loaded=false`;
                 document.getElementById('statusIndicator').style.opacity = '1';
+
+                const demoModelVersion = document.getElementById('demoModelVersion');
+                if (demoModelVersion) demoModelVersion.textContent = modelVersion;
             } catch (error) {
                 document.getElementById('statusText').textContent = 'API Unreachable';
                 document.getElementById('statusIndicator').style.opacity = '0.5';
@@ -410,7 +905,7 @@
             loading.classList.add('show');
             
             try {
-                const response = await fetch(`${API_URL}/predict`, {
+                const response = await fetch(`${getApiUrl()}/predict`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -469,5 +964,9 @@
         // Load sample on startup
         window.addEventListener('DOMContentLoaded', loadSampleTransaction);
     </script>
+    
+    <!-- Streaming Demo Scripts -->
+    <script src="demo-data.js"></script>
+    <script src="streaming-demo.js"></script>
 </body>
 </html>

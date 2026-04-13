@@ -2,6 +2,10 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends curl \
+  && rm -rf /var/lib/apt/lists/*
+
 # Start a simple HTTP server for the frontend
 COPY frontend /app/frontend
 

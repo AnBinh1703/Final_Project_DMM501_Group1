@@ -1,0 +1,8 @@
+artifact_location: file:///home/andb/Documents/Final_Project_DMM501_Group1/mlruns/903262727702028174
+creation_time: 1776072295524
+experiment_id: '903262727702028174'
+last_update_time: 1776072295524
+lifecycle_stage: active
+name: fraud-detection-benchmark
+trace_location: null
+workspace: default

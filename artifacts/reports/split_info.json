@@ -1,0 +1,7 @@
+{
+  "train_rows": 199364,
+  "val_rows": 42721,
+  "test_rows": 42722,
+  "n_features": 30,
+  "random_seed": 42
+}

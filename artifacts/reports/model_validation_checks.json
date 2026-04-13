@@ -1,0 +1,6 @@
+{
+  "model_artifact_loadable": true,
+  "probabilities_in_range": true,
+  "no_nan_predictions": true,
+  "feature_count_matches": true
+}

@@ -4,9 +4,14 @@ services:
       context: ..
       dockerfile: deployment/api/Dockerfile
     environment:
-      MODEL_PATH: /app/artifacts/models/improved_lightgbm.joblib
-      FRAUD_THRESHOLD: "0.14"
-      MODEL_VERSION: lightgbm-production-v1
+      # Generate this with: python -m src.pipelines.train_pipeline --data-path "" --artifacts-dir artifacts
+      # Or generate the full real-dataset benchmark artifacts with:
+      #   python -m src.pipelines.run_model_workflow --data-path data/archive/creditcard.csv --artifacts-root artifacts
+      MODEL_PATH: /app/artifacts/models/final_model.joblib
+      # For deployment, prefer using the threshold stored in artifacts/models/model_info.json.
+      # If you override it, keep it consistent with that file.
+      FRAUD_THRESHOLD: "0.99"
+      MODEL_VERSION: creditcard-production-v1
     volumes:
       - ../artifacts:/app/artifacts
     ports:
@@ -52,6 +57,7 @@ services:
     image: prom/prometheus:v2.54.1
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'

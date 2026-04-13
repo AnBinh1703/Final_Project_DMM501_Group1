@@ -1,0 +1,70 @@
+{
+  "data_source": "synthetic:make_classification",
+  "target_column": "Class",
+  "dataset_rows": 12000,
+  "dataset_features": 20,
+  "class_distribution": {
+    "non_fraud": 11829,
+    "fraud": 171
+  },
+  "models": {
+    "baseline_logistic_regression_val": {
+      "threshold": 0.5,
+      "pr_auc": 0.45334427719245657,
+      "roc_auc": 0.8803876506807736,
+      "precision": 0.04592901878914405,
+      "recall": 0.8461538461538461,
+      "f1": 0.08712871287128712,
+      "confusion_matrix": {
+        "tn": 1317,
+        "fp": 457,
+        "fn": 4,
+        "tp": 22
+      }
+    },
+    "candidate_random_forest_val": {
+      "threshold": 0.5,
+      "pr_auc": 0.49955976216715553,
+      "roc_auc": 0.8305437516260517,
+      "precision": 1.0,
+      "recall": 0.11538461538461539,
+      "f1": 0.20689655172413793,
+      "confusion_matrix": {
+        "tn": 1774,
+        "fp": 0,
+        "fn": 23,
+        "tp": 3
+      }
+    },
+    "final_model_val_tuned_threshold": {
+      "threshold": 0.7,
+      "pr_auc": 0.38420524237771336,
+      "roc_auc": 0.785946578787616,
+      "precision": 0.6666666666666666,
+      "recall": 0.3076923076923077,
+      "f1": 0.42105263157894735,
+      "confusion_matrix": {
+        "tn": 1770,
+        "fp": 4,
+        "fn": 18,
+        "tp": 8
+      }
+    },
+    "final_model_test": {
+      "threshold": 0.7,
+      "pr_auc": 0.19028020278886032,
+      "roc_auc": 0.7420845070422536,
+      "precision": 0.2857142857142857,
+      "recall": 0.16,
+      "f1": 0.20512820512820512,
+      "confusion_matrix": {
+        "tn": 1765,
+        "fp": 10,
+        "fn": 21,
+        "tp": 4
+      }
+    }
+  },
+  "final_model_name": "lightgbm",
+  "model_version": "20260413T094733Z"
+}

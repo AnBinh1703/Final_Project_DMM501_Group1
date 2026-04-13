@@ -211,7 +211,7 @@ function updateStreamButtonStates() {
   }
   if (DemoState.pauseBtn) {
     DemoState.pauseBtn.disabled = !isRunning;
-    DemoState.pauseBtn.textContent = DemoState.isPaused ? '▶️ Resume' : '⏸️ Pause';
+    DemoState.pauseBtn.textContent = DemoState.isPaused ? 'Resume' : 'Pause';
   }
   if (DemoState.stopBtn) {
     DemoState.stopBtn.disabled = !isRunning;

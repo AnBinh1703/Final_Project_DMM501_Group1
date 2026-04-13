@@ -1,0 +1,14 @@
+artifact_uri: file:///home/andb/Documents/Final_Project_DMM501_Group1/mlruns/903262727702028174/a1605e8d71084d7d984ca3135549dc73/artifacts
+end_time: 1776072388449
+entry_point_name: ''
+experiment_id: '903262727702028174'
+lifecycle_stage: active
+run_id: a1605e8d71084d7d984ca3135549dc73
+run_name: improved_lightgbm
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1776072388440
+status: 3
+tags: []
+user_id: andb

@@ -51,11 +51,17 @@ def _evaluate(y_true: np.ndarray, y_score: np.ndarray, threshold: float) -> dict
     }
 
 
-def _tune_threshold(y_true: np.ndarray, y_score: np.ndarray, min_precision: float = 0.1) -> tuple[float, dict[str, Any]]:
+def _tune_threshold(
+    y_true: np.ndarray,
+    y_score: np.ndarray,
+    min_precision: float = 0.1,
+    fast: bool = False,
+) -> tuple[float, dict[str, Any]]:
     best_threshold = 0.5
     best_metrics = _evaluate(y_true, y_score, threshold=best_threshold)
 
-    for threshold in np.linspace(0.05, 0.95, 91):
+    thresholds = np.linspace(0.05, 0.95, 19 if fast else 91)
+    for threshold in thresholds:
         metrics = _evaluate(y_true, y_score, threshold=float(threshold))
         if metrics["precision"] < min_precision:
             continue
@@ -72,35 +78,41 @@ def _train_baseline_model(X_train: np.ndarray, y_train: np.ndarray) -> LogisticR
     return model
 
 
-def _train_candidate_model(X_train: np.ndarray, y_train: np.ndarray) -> RandomForestClassifier:
+def _train_candidate_model(
+    X_train: np.ndarray,
+    y_train: np.ndarray,
+    n_estimators: int = 220,
+    n_jobs: int = -1,
+) -> RandomForestClassifier:
     model = RandomForestClassifier(
-        n_estimators=220,
+        n_estimators=int(n_estimators),
         random_state=42,
-        n_jobs=-1,
+        n_jobs=int(n_jobs),
         class_weight="balanced_subsample",
     )
     model.fit(X_train, y_train)
     return model
 
 
-def _train_final_model(X_train: np.ndarray, y_train: np.ndarray, positive_weight: float):
+def _train_final_model(X_train: np.ndarray, y_train: np.ndarray, positive_weight: float, fast: bool = False):
     if HAS_LIGHTGBM:
         model = LGBMClassifier(
-            n_estimators=260,
+            n_estimators=40 if fast else 260,
             learning_rate=0.05,
             num_leaves=31,
             subsample=0.9,
             colsample_bytree=0.9,
             random_state=42,
+            n_jobs=1 if fast else -1,
             scale_pos_weight=positive_weight,
             objective="binary",
         )
     else:
         # Fallback keeps training runnable even if LightGBM binary is unavailable.
         model = RandomForestClassifier(
-            n_estimators=260,
+            n_estimators=40 if fast else 260,
             random_state=42,
-            n_jobs=-1,
+            n_jobs=1 if fast else -1,
             class_weight="balanced_subsample",
         )
     model.fit(X_train, y_train)
@@ -113,6 +125,7 @@ def run_training(
     target_col: str,
     min_precision: float,
     n_samples_if_synthetic: int,
+    fast: bool = False,
 ) -> dict[str, Any]:
     df, source = load_training_dataframe(
         data_path=data_path,
@@ -146,7 +159,12 @@ def run_training(
     baseline_val_scores = baseline_model.predict_proba(X_val_scaled)[:, 1]
     baseline_metrics = _evaluate(y_val, baseline_val_scores, threshold=0.5)
 
-    candidate_model = _train_candidate_model(X_train, y_train)
+    candidate_model = _train_candidate_model(
+        X_train,
+        y_train,
+        n_estimators=20 if fast else 220,
+        n_jobs=1 if fast else -1,
+    )
     candidate_val_scores = candidate_model.predict_proba(X_val)[:, 1]
     candidate_metrics = _evaluate(y_val, candidate_val_scores, threshold=0.5)
 
@@ -154,9 +172,9 @@ def run_training(
     positives = max((y_train == 1).sum(), 1)
     positive_weight = float(negatives / positives)
 
-    final_model = _train_final_model(X_train, y_train, positive_weight=positive_weight)
+    final_model = _train_final_model(X_train, y_train, positive_weight=positive_weight, fast=fast)
     final_val_scores = final_model.predict_proba(X_val)[:, 1]
-    tuned_threshold, tuned_metrics = _tune_threshold(y_val, final_val_scores, min_precision=min_precision)
+    tuned_threshold, tuned_metrics = _tune_threshold(y_val, final_val_scores, min_precision=min_precision, fast=fast)
 
     X_train_full = np.concatenate([X_train, X_val], axis=0)
     y_train_full = np.concatenate([y_train, y_val], axis=0)
@@ -210,28 +228,29 @@ def run_training(
     metrics_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
     model_info_path.write_text(json.dumps(model_info, indent=2), encoding="utf-8")
 
-    try:
-        import mlflow
+    if not fast:
+        try:
+            import mlflow
 
-        mlflow.set_experiment("fraud-detection")
-        with mlflow.start_run(run_name=f"train-{model_version}"):
-            mlflow.log_param("data_source", source)
-            mlflow.log_param("target_col", target_col)
-            mlflow.log_param("final_model_name", report["final_model_name"])
-            mlflow.log_param("n_features", int(X.shape[1]))
-            mlflow.log_param("threshold", float(tuned_threshold))
-            final_metrics = report["models"]["final_model_test"]
-            mlflow.log_metric("test_pr_auc", float(final_metrics["pr_auc"]))
-            mlflow.log_metric("test_roc_auc", float(final_metrics["roc_auc"]))
-            mlflow.log_metric("test_precision", float(final_metrics["precision"]))
-            mlflow.log_metric("test_recall", float(final_metrics["recall"]))
-            mlflow.log_metric("test_f1", float(final_metrics["f1"]))
-            mlflow.log_artifact(str(model_path))
-            mlflow.log_artifact(str(metrics_path))
-            mlflow.log_artifact(str(model_info_path))
-    except Exception:
-        # Keep pipeline runnable even if MLflow local logging fails in a given environment.
-        pass
+            mlflow.set_experiment("fraud-detection")
+            with mlflow.start_run(run_name=f"train-{model_version}"):
+                mlflow.log_param("data_source", source)
+                mlflow.log_param("target_col", target_col)
+                mlflow.log_param("final_model_name", report["final_model_name"])
+                mlflow.log_param("n_features", int(X.shape[1]))
+                mlflow.log_param("threshold", float(tuned_threshold))
+                final_metrics = report["models"]["final_model_test"]
+                mlflow.log_metric("test_pr_auc", float(final_metrics["pr_auc"]))
+                mlflow.log_metric("test_roc_auc", float(final_metrics["roc_auc"]))
+                mlflow.log_metric("test_precision", float(final_metrics["precision"]))
+                mlflow.log_metric("test_recall", float(final_metrics["recall"]))
+                mlflow.log_metric("test_f1", float(final_metrics["f1"]))
+                mlflow.log_artifact(str(model_path))
+                mlflow.log_artifact(str(metrics_path))
+                mlflow.log_artifact(str(model_info_path))
+        except Exception:
+            # Keep pipeline runnable even if MLflow local logging fails in a given environment.
+            pass
 
     return {
         "model_path": str(model_path),
@@ -258,6 +277,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=12000,
         help="Synthetic row count used only when --data-path is not provided",
     )
+    parser.add_argument("--fast", action="store_true", help="Use smaller models and faster threshold tuning (demo/testing)")
     return parser
 
 
@@ -269,6 +289,7 @@ def run() -> None:
         target_col=args.target_col,
         min_precision=args.min_precision,
         n_samples_if_synthetic=args.synthetic_samples,
+        fast=bool(args.fast),
     )
 
     final_test = result["report"]["models"]["final_model_test"]

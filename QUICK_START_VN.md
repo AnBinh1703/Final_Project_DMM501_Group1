@@ -1,312 +1,226 @@
-# Hướng Dẫn Chạy Hệ Thống Phát Hiện Gian Lận (Fraud Detection System)
+# Huong Dan Chay Project (Local + Docker)
 
-## 📋 Quick Start / Bắt Đầu Nhanh
+Tai lieu nay huong dan cach chay day du he thong Fraud Detection theo 2 cach:
+- Chay local (Python venv, run ML pipeline, run API, run frontend, run tests)
+- Chay Docker Compose local (API + Frontend + MLflow + Prometheus + Grafana)
 
-### Prerequisites / Yêu Cầu
-- Python 3.11+ với virtual environment đã được thiết lập
-- Tất cả dependencies đã được install trong `.venv`
+Dataset (da co san tren may):
+- `data/archive/creditcard.csv`
 
-### Chạy Hệ Thống Cục Bộ / Running Locally
+Luu y:
+- File dataset CSV lon thuong KHONG commit vao Git (chi dat local).
+- Docker Compose mount thu muc `./artifacts` tu may host; hay tao artifacts truoc khi `docker compose up`.
 
-#### **Bước 1: Mở Terminal / Open Terminal**
+## 0) Prerequisites
+- Python 3.11+
+- Docker + Docker Compose (neu muon chay full stack bang Docker)
 
+## 1) Chay Local (khong can Docker)
+
+### 1.1 Tao virtual env + cai dependencies
+
+Linux/macOS:
 ```bash
-# Đi đến thư mục dự án
-cd "d:\MSE\12. AI in DevOps, DataOps, MLOps\Final_Project"
+python -m venv .venv
+. .venv/bin/activate
+python -m pip install -U pip
+pip install -r requirements.txt
+pip install pytest-cov
+export MPLCONFIGDIR=/tmp/matplotlib
 ```
 
-#### **Bước 2: Khởi Động Backend API**
-
-**Terminal 1:**
+Windows PowerShell:
 ```powershell
-$env:MODEL_PATH="artifacts/models/improved_lightgbm.joblib"
-$env:FRAUD_THRESHOLD="0.14"
-$env:MODEL_VERSION="lightgbm-production-v1"
-.\.venv\Scripts\python.exe -m uvicorn src.api.main:app --host 127.0.0.1 --port 8000
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -U pip
+pip install -r requirements.txt
+pip install pytest-cov
+$env:MPLCONFIGDIR="C:\Temp\matplotlib"
 ```
 
-**Expected Output:**
+### 1.2 Tao artifacts tu dataset that (khuyen nghi)
+
+Day la workflow day du: data validation + EDA + baseline + improved + threshold tuning + model selection + SHAP.
+
+```bash
+python -m src.pipelines.run_model_workflow \
+  --data-path data/archive/creditcard.csv \
+  --artifacts-root artifacts \
+  --seed 42
 ```
-INFO:     Started server process [27440]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-INFO:     Uvicorn running on http://127.0.0.1:8000
+
+Artifacts quan trong:
+- Data validation:
+  - `artifacts/reports/dataset_schema.json`
+  - `artifacts/reports/missing_values.csv`
+  - `artifacts/reports/class_distribution.json`
+- EDA figures: `artifacts/figures/*.png`
+- Model figures (phuc vu bao cao/presentation):
+  - `artifacts/figures/baseline_threshold_sweep.png`
+  - `artifacts/figures/improved_threshold_sweep.png`
+  - `artifacts/figures/threshold_comparison.png`
+  - `artifacts/figures/model_comparison.png`
+  - `artifacts/figures/feature_importance.png`
+  - `artifacts/figures/shap_summary.png`
+- Model selection:
+  - `artifacts/benchmarks/model_comparison.csv`
+  - `artifacts/reports/model_selection_summary.json`
+- Deployable model:
+  - `artifacts/models/final_model.joblib`
+  - `artifacts/models/model_info.json` (threshold + feature columns)
+
+### 1.3 (Option) Tao artifacts nhanh (synthetic dataset)
+
+Neu can demo nhanh, co the train synthetic:
+```bash
+python -m src.pipelines.train_pipeline --data-path "" --artifacts-dir artifacts --fast
+```
+Output:
+- `artifacts/model.joblib`
+- `artifacts/model_info.json`
+- `artifacts/metrics_report.json`
+
+### 1.4 Run Backend API (FastAPI)
+
+Option A (dung final model tu dataset that):
+```bash
+MODEL_PATH=artifacts/models/final_model.joblib \
+MODEL_VERSION=creditcard-production-v1 \
+FRAUD_THRESHOLD=0.99 \
+uvicorn src.api.main:app --host 0.0.0.0 --port 8000
 ```
 
-✓ **API is Ready** → http://127.0.0.1:8000
+Option B (dung model synthetic):
+```bash
+MODEL_PATH=artifacts/model.joblib \
+MODEL_VERSION=local-demo \
+FRAUD_THRESHOLD=0.14 \
+uvicorn src.api.main:app --host 0.0.0.0 --port 8000
+```
 
-#### **Bước 3: Khởi Động Frontend**
+Endpoints:
+- Health: `http://localhost:8000/health`
+- Swagger: `http://localhost:8000/docs`
+- OpenAPI JSON: `http://localhost:8000/openapi.json`
+- Metrics: `http://localhost:8000/metrics`
 
-**Terminal 2:**
+### 1.5 Run Frontend (demo UI)
+
+```bash
+cd frontend
+python -m http.server 8080 --bind 0.0.0.0
+```
+
+Mo trinh duyet:
+- `http://localhost:8080/index.html`
+
+### 1.6 Goi thu /predict (tu dong lay dung feature length)
+
+```bash
+python - <<'PY'
+import json, urllib.request
+import requests
+
+health = requests.get("http://localhost:8000/health").json()
+n = int(health["expected_features"] or 0)
+features = [0.0] * n
+
+req = urllib.request.Request(
+  "http://localhost:8000/predict",
+  data=json.dumps({"features": features}).encode(),
+  headers={"Content-Type": "application/json"},
+)
+print(urllib.request.urlopen(req).read().decode())
+PY
+```
+
+### 1.7 Run tests + coverage gate
+
+```bash
+pytest -q --cov=src --cov-report=term-missing --cov-fail-under=80
+```
+
+## 2) Chay Docker Compose Local (full stack)
+
+### 2.1 Tao artifacts tren host (bat buoc)
+
+Khuyen nghi (dataset that):
+```bash
+python -m src.pipelines.run_model_workflow --data-path data/archive/creditcard.csv --artifacts-root artifacts --seed 42
+```
+
+### 2.2 Start full stack
+
+```bash
+docker compose -f deployment/docker-compose.yml up --build
+```
+
+Services:
+- API: `http://localhost:8000` (Swagger: `/docs`, Metrics: `/metrics`)
+- Frontend: `http://localhost:8080`
+- MLflow: `http://localhost:5000`
+- Prometheus: `http://localhost:9090`
+- Grafana: `http://localhost:3000` (mac dinh: admin/admin)
+
+### 2.3 Kiem tra nhanh
+
+```bash
+curl -s http://localhost:8000/health
+curl -s http://localhost:8000/metrics | grep -m1 api_requests_total
+```
+
+### 2.4 Kiem tra alerts (Prometheus)
+
+- Mo Prometheus: `http://localhost:9090`
+- Vao `Status -> Rules` hoac tab `Alerts`
+- Alert rules duoc load tu: `deployment/prometheus/alerts.yml`
+
+## 3) Troubleshooting
+
+### Port 8000/8080 bi chiem
+
+Linux:
+```bash
+sudo lsof -i :8000
+sudo lsof -i :8080
+```
+
+Windows PowerShell:
 ```powershell
-cd "d:\MSE\12. AI in DevOps, DataOps, MLOps\Final_Project\frontend"
-python -m http.server 8080 --bind 127.0.0.1
-```
-
-**Expected Output:**
-```
-Serving HTTP on 127.0.0.1 port 8080 (http://127.0.0.1:8080/) ...
-```
-
-✓ **Frontend is Ready** → http://127.0.0.1:8080/index.html
-
----
-
-## 🎯 Sử Dụng Hệ Thống / Using the System
-
-### Truy Cập Giao Diện Web
-
-1. **Mở trình duyệt** / Open Browser
-2. **Điều hướng đến** / Navigate to: `http://127.0.0.1:8080/index.html`
-3. **Kết quả** / Result:
-
-```
-┌─────────────────────────────────────┐
-│  🔒 Fraud Detection System          │
-│  Real-time fraud prediction         │
-├─────────────────────────────────────┤
-│  Transaction Details                │
-│  Time: [0]                          │
-│  Amount: [149.62]                   │
-│  Features V1-V28: [Loaded Sample]   │
-├─────────────────────────────────────┤
-│  📋 Load Sample  🔍 Predict Fraud   │
-├─────────────────────────────────────┤
-│  Prediction Result                  │
-│  ✓ LEGITIMATE                       │
-│  Fraud Probability: 0.00%           │
-└─────────────────────────────────────┘
-```
-
-### API Endpoints / Các Điểm Cuối API
-
-#### 1. **Health Check** - Kiểm tra trạng thái mô hình
-
-```bash
-# Request
-curl http://127.0.0.1:8000/health
-
-# Response
-{
-  "status": "ok",
-  "model_loaded": true,
-  "model_version": "lightgbm-production-v1",
-  "expected_features": 30
-}
-```
-
-#### 2. **Prediction** - Dự đoán gian lận
-
-```bash
-# Request (30 features: Time + V1-V28 + Amount)
-curl -X POST http://127.0.0.1:8000/predict \
-  -H "Content-Type: application/json" \
-  -d '{
-    "features": [0.0, -1.36, -0.07, 2.54, 1.38, -0.34, 0.46, 0.24, 0.10, 0.36, 0.09, -0.55, -0.62, -0.99, -0.31, 1.47, -0.47, 0.21, 0.03, 0.40, 0.25, -0.02, 0.28, -0.11, 0.07, 0.13, -0.19, 0.13, -0.02, 149.62]
-  }'
-
-# Response
-{
-  "request_id": "abc-123-def",
-  "fraud_probability": 0.000000,
-  "fraud_label": 0,
-  "threshold": 0.14,
-  "model_version": "lightgbm-production-v1"
-}
-```
-
-#### 3. **Metrics** - Chỉ số hiệu suất
-
-```bash
-# Request
-curl http://127.0.0.1:8000/metrics
-
-# Response: Prometheus format metrics
-api_requests_total{endpoint="/predict",http_status="200",method="POST"} 5.0
-api_request_latency_seconds_bucket{endpoint="/predict",le="0.05",method="POST"} 5.0
-fraud_predictions_total{label="0"} 4.0
-```
-
-#### 4. **Documentation** - Tài liệu API
-
-```
-http://127.0.0.1:8000/docs
-```
-
-Swagger UI sẽ hiển thị tất cả endpoints và cho phép test trực tiếp.
-
----
-
-## 🐳 Docker (Nếu Docker Được Cài Đặt / If Docker is Installed)
-
-### Kiểm Tra Docker
-
-```bash
-docker --version
-docker-compose --version
-```
-
-### Xây Dựng Images
-
-```bash
-cd deployment
-docker build -f api/Dockerfile -t fraud-detection-api:latest ..
-docker build -f frontend/Dockerfile -t fraud-detection-frontend:latest ..
-```
-
-### Chạy Full Stack
-
-```bash
-cd deployment
-docker-compose up --build
-```
-
-**Services sẽ available:**
-- API: http://localhost:8000
-- Frontend: http://localhost:8080
-- Prometheus: http://localhost:9090
-- Grafana: http://localhost:3000 (admin/admin)
-
----
-
-## 📊 Model Information / Thông Tin Mô Hình
-
-| Thuộc Tính | Giá Trị |
-|-----------|--------|
-| **Model Type** | LightGBM Classifier |
-| **Features** | 30 (Time + V1-V28 + Amount) |
-| **Threshold** | 0.14 |
-| **PR-AUC** | 0.8156 |
-| **F1 Score** | 0.8321 |
-| **Status** | ✓ Production Ready |
-
-### Feature Order / Thứ Tự Các Đặc Trưng
-
-```
-1. Time              - Khung thời gian
-2-29. V1 to V28     - Principal Component Analysis features
-30. Amount          - Số tiền giao dịch
-```
-
----
-
-## ✓ Verification / Kiểm Tra Hệ Thống
-
-### Run Verification Script
-
-```bash
-cd "d:\MSE\12. AI in DevOps, DataOps, MLOps\Final_Project"
-.\.venv\Scripts\python.exe verify_system.py
-```
-
-**Expected Output:**
-```
-======================================================================
-FRAUD DETECTION SYSTEM - END-TO-END VERIFICATION
-======================================================================
-
-[1/6] Checking API Health...
-      ✓ API Available (Status: 200)
-      ✓ Model Loaded: True
-      ✓ Model Version: lightgbm-production-v1
-      ✓ Expected Features: 30
-
-[2/6] Testing Legitimate Transaction Prediction...
-      ✓ Prediction Success (Status: 200)
-      ✓ Fraud Probability: 0.000000
-      ✓ Fraud Label: 0
-
-[3/6] Testing High-Value Transaction...
-      ✓ Prediction with Different Amount
-
-[4/6] Testing Error Handling...
-      ✓ Error Handling Works
-
-[5/6] Checking Metrics Endpoint...
-      ✓ Metrics Endpoint Available
-
-[6/6] Checking Frontend...
-      ✓ Frontend Available
-      ✓ Frontend HTML Valid
-      ✓ URL: http://127.0.0.1:8080/index.html
-
-======================================================================
-✓ END-TO-END VERIFICATION COMPLETE
-======================================================================
-```
-
----
-
-## 🔧 Xử Lý Sự Cố / Troubleshooting
-
-### Problem: Port 8000 đã được sử dụng
-
-**Solution:**
-```bash
-# Tìm process sử dụng port 8000
 netstat -ano | findstr :8000
-
-# Kill process (replace PID)
+netstat -ano | findstr :8080
 taskkill /PID <PID> /F
-
-# Hoặc sử dụng port khác
-.\.venv\Scripts\python.exe -m uvicorn src.api.main:app --host 127.0.0.1 --port 8001
 ```
 
-### Problem: ModuleNotFoundError: prometheus_client
+### Matplotlib cache warning
 
-**Solution:**
+Neu thay warning ve Matplotlib cache khong ghi duoc, hay set:
 ```bash
-# Đảm bảo sử dụng đúng virtual environment
-.\.venv\Scripts\python.exe -m uvicorn src.api.main:app --host 127.0.0.1 --port 8000
-
-# KHÔNG dùng
-uvicorn src.api.main:app --host 127.0.0.1 --port 8000  # ❌ Sai
+export MPLCONFIGDIR=/tmp/matplotlib
 ```
 
-### Problem: Frontend không thể gọi API
+### verify_system.py
 
-**Solution:**
-```javascript
-// Nếu frontend và API chạy trên máy tính khác:
-// Thay đổi API_URL trong frontend/index.html
-const API_URL = 'http://<server-ip>:8000';  // Thay <server-ip>
-```
+`verify_system.py` co payload mau theo schema Kaggle (Time + V1..V28 + Amount), nen phu hop voi dataset `creditcard.csv`.
+Neu ban train synthetic (so feature khac), hay dung doan Python o muc 1.6 de goi /predict theo dung feature length.
 
----
-
-## 📝 File Structure / Cấu Trúc File
+## File Structure (rut gon)
 
 ```
-Final_Project/
+.
 ├── src/
-│   ├── api/
-│   │   ├── main.py           (FastAPI application)
-│   │   └── schemas.py        (Pydantic request/response models)
-│   ├── models/
-│   │   └── loader.py         (Model loading logic)
-│   ├── features/
-│   │   └── preprocess.py     (Feature preprocessing)
-│   └── monitoring/
-│       └── metrics.py        (Prometheus metrics)
+├── tests/
 ├── frontend/
-│   └── index.html            (Interactive UI)
-├── artifacts/
-│   └── models/
-│       └── improved_lightgbm.joblib  (Trained model)
 ├── deployment/
-│   ├── api/
-│   │   └── Dockerfile        (API container)
-│   ├── frontend/
-│   │   └── Dockerfile        (Frontend container)
-│   ├── docker-compose.yml    (Multi-service orchestration)
-│   ├── prometheus/
-│   │   └── prometheus.yml    (Metrics scraping config)
-│   └── grafana/
-│       └── dashboards/       (Monitoring dashboards)
-├── .env                      (Environment variables)
-├── requirements.txt          (Python dependencies)
-└── verify_system.py          (System verification script)
+├── data/archive/creditcard.csv
+└── artifacts/
+    ├── reports/
+    ├── figures/
+    ├── benchmarks/
+    └── models/
+        ├── final_model.joblib
+        └── model_info.json
 ```
 
 ---

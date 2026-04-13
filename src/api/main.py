@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 import os
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
-from starlette.responses import Response
+from starlette.responses import RedirectResponse, Response
 
 from src.api.schemas import PredictRequest, PredictResponse
 from src.features.preprocess import preprocess_feature_vector
@@ -17,7 +18,16 @@ from src.monitoring.metrics import (
 )
 from src.utils.ids import new_request_id
 
-app = FastAPI(title="Fraud Detection API", version="0.1.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Load at startup so tests/containers can set MODEL_PATH before app boot.
+    app.state.loaded_model = maybe_load_model_from_env()
+    yield
+    app.state.loaded_model = None
+
+
+app = FastAPI(title="Fraud Detection API", version="1.0.0", lifespan=lifespan)
 
 _default_origins = ["http://localhost:8080", "http://127.0.0.1:8080"]
 _env_origins = os.getenv("CORS_ALLOW_ORIGINS", "").strip()
@@ -31,16 +41,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-_loaded = maybe_load_model_from_env()
+
+@app.get("/", include_in_schema=False)
+def root() -> RedirectResponse:
+    # Browsers often hit `/` first. Redirect to Swagger UI for a better demo experience.
+    return RedirectResponse(url="/docs")
 
 
 @app.get("/health")
 def health() -> dict:
+    loaded = getattr(app.state, "loaded_model", None)
     return {
         "status": "ok",
-        "model_loaded": _loaded is not None,
-        "model_version": _loaded.model_version if _loaded else None,
-        "expected_features": _loaded.n_features if _loaded else None,
+        "model_loaded": loaded is not None,
+        "model_version": loaded.model_version if loaded else None,
+        "expected_features": loaded.n_features if loaded else None,
     }
 
 
@@ -55,18 +70,19 @@ def predict(req: PredictRequest) -> PredictResponse:
     method = "POST"
 
     with track_request(endpoint=endpoint, method=method):
-        if _loaded is None:
+        loaded = getattr(app.state, "loaded_model", None)
+        if loaded is None:
             record_response(endpoint=endpoint, method=method, http_status=503)
             raise HTTPException(status_code=503, detail="Model not loaded. Set MODEL_PATH and restart.")
 
-        model = _loaded.model
-        threshold = _loaded.threshold
+        model = loaded.model
+        threshold = loaded.threshold
 
-        if _loaded.n_features is not None and len(req.features) != _loaded.n_features:
+        if loaded.n_features is not None and len(req.features) != loaded.n_features:
             record_response(endpoint=endpoint, method=method, http_status=422)
             raise HTTPException(
                 status_code=422,
-                detail=f"Invalid feature length: expected {_loaded.n_features}, received {len(req.features)}",
+                detail=f"Invalid feature length: expected {loaded.n_features}, received {len(req.features)}",
             )
 
         # Expect scikit-learn style predict_proba.
@@ -91,5 +107,5 @@ def predict(req: PredictRequest) -> PredictResponse:
             fraud_probability=proba,
             fraud_label=label,
             threshold=threshold,
-            model_version=_loaded.model_version,
+            model_version=loaded.model_version,
         )

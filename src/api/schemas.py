@@ -15,3 +15,17 @@ class PredictResponse(BaseModel):
     fraud_label: int = Field(..., ge=0, le=1)
     threshold: float = Field(..., ge=0.0, le=1.0)
     model_version: str
+
+
+class FeatureSchemaResponse(BaseModel):
+    n_features: int = Field(..., ge=1)
+    feature_names: list[str] = Field(..., min_length=1)
+
+
+class RandomFeaturesResponse(BaseModel):
+    n_features: int = Field(..., ge=1)
+    mode: str = Field(..., description="Generation mode actually used (e.g. 'creditcard' or 'normal').")
+    seed: int | None = Field(None, description="Seed used for reproducible generation (if provided).")
+    features: list[float] = Field(..., min_length=1, description="Ordered feature vector")
+    time_s: float | None = Field(None, ge=0.0, description="Time feature for creditcard mode (seconds).")
+    amount: float | None = Field(None, ge=0.0, description="Amount feature for creditcard mode.")

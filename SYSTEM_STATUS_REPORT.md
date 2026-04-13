@@ -158,7 +158,7 @@ API_PORT=8000
 ### New Files Created:
 - ✅ frontend/index.html (400+ lines, fully functional)
 - ✅ deployment/frontend/Dockerfile
-- ✅ QUICK_START_VN.md (Vietnamese/English guide)
+- ✅ QUICK_START.md (English quickstart guide)
 - ✅ EXECUTION_REPORT.md (detailed technical report)
 - ✅ verify_system.py (end-to-end verification script)
 - ✅ test_frontend_api.py (integration testing)
@@ -181,7 +181,7 @@ API_PORT=8000
 | Predictions Working | ✅ Yes | Sub-100ms response time |
 | Error Handling | ✅ Yes | Clear error messages |
 | Metrics Collection | ✅ Yes | All metrics flowing |
-| Documentation | ✅ Yes | QUICK_START_VN.md created |
+| Documentation | ✅ Yes | QUICK_START.md available |
 | End-to-End Test | ✅ Passed | verify_system.py all 6 checks passed |
 
 **READY FOR LIVE PRESENTATION**: ✅ **YES**

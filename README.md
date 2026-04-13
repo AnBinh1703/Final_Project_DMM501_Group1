@@ -13,6 +13,7 @@ End-to-end ML system for near-real-time fraud scoring on tabular financial trans
 - Testing: unit + integration + data quality + model validation, with coverage gate
 
 See `ARCHITECTURE.md` for system design and `CONTRIBUTING.md` for team workflow.
+For a step-by-step run guide (Local + Docker), see `QUICK_START.md`.
 
 ## Problem Definition
 

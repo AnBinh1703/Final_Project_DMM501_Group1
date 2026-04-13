@@ -336,6 +336,18 @@
             border-color: var(--accent);
             box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.16);
         }
+
+        .hint {
+            margin-top: 8px;
+            color: #64748b;
+            font-size: 12px;
+            line-height: 1.35;
+        }
+
+        .hint code {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            font-size: 12px;
+        }
         
         .status-dot {
             width: 8px;
@@ -709,25 +721,37 @@
         <div class="form-section">
             <h2>Transaction Details</h2>
 
-            <div class="input-group">
-                <div class="form-input">
-                    <label>Time (seconds from start)</label>
-                    <input type="number" id="timeInput" value="0" step="1" min="0">
+            <div id="creditcardInputs">
+                <div class="input-group">
+                    <div class="form-input">
+                        <label>Time (seconds from start)</label>
+                        <input type="number" id="timeInput" value="0" step="1" min="0">
+                    </div>
+                    <div class="form-input">
+                        <label>Amount ($)</label>
+                        <input type="number" id="amountInput" value="149.62" step="0.01" min="0">
+                    </div>
                 </div>
-                <div class="form-input">
-                    <label>Amount ($)</label>
-                    <input type="number" id="amountInput" value="149.62" step="0.01" min="0">
+                
+                <div class="form-input" style="margin-top: 6px;">
+                    <label>Principal Component Features (V1-V28)</label>
+                    <textarea id="featureInput" class="feature-textarea" placeholder="Enter 28 comma-separated values for V1-V28"></textarea>
+                    <div class="hint">Creditcard mode expects exactly 30 features: <code>[Time, V1..V28, Amount]</code></div>
                 </div>
             </div>
-            
-            <div class="form-input" style="margin-top: 6px;">
-                <label>Principal Component Features (V1-V28)</label>
-                <textarea id="featureInput" class="feature-textarea" placeholder="Enter 28 comma-separated values for V1-V28"></textarea>
+
+            <div id="genericInputs" style="display:none;">
+                <div class="form-input">
+                    <label>Feature Vector (comma-separated)</label>
+                    <textarea id="genericFeatureInput" class="feature-textarea" placeholder="Enter numeric features, e.g. 0.1, -1.2, 3.4"></textarea>
+                    <div class="hint">This model expects <strong id="expectedFeatureCount">-</strong> features. Use <code>/features/random</code> for a valid example.</div>
+                </div>
             </div>
         </div>
         
         <div class="button-group">
             <button class="sample-btn" onclick="loadSampleTransaction()">Load Sample</button>
+            <button class="sample-btn" onclick="loadRandomTransactionFromApi()">Random (API)</button>
             <button class="predict-btn" id="predictBtn" onclick="makePrediction()">Predict</button>
         </div>
         
@@ -766,7 +790,7 @@
         </div>
         
         <!-- Real-Time Streaming Demo Section -->
-        <div class="demo-section">
+        <div class="demo-section" id="streamingSection">
             <h2>Real-Time Streaming Demo</h2>
 
             <div class="demo-banner" id="demoStatusBanner">
@@ -775,7 +799,7 @@
                     <span style="margin-left: 10px;"><strong>Mode:</strong> <span id="demoStreamMode">dataset</span></span>
                     <span style="margin-left: 10px;"><strong>Model:</strong> <span class="mono" id="demoModelVersion">-</span></span>
                 </div>
-                <div class="mono">/predict expects 30 features: [Time, V1..V28, Amount]</div>
+                <div class="mono" id="demoExpectText">/predict expects 30 features: [Time, V1..V28, Amount]</div>
             </div>
 
             <div class="demo-banner demo-error" id="demoErrorBanner" style="display:none;">
@@ -857,7 +881,7 @@
         </div>
     </div>
     
-    <script>
+        <script>
         (function initAppConfig() {
             const urlParams = new URLSearchParams(window.location.search);
             const paramApi = urlParams.get('api');
@@ -866,6 +890,12 @@
 
             window.APP_CONFIG = {
                 apiUrl: (paramApi || storedApi || defaultApi).trim()
+            };
+
+            window.APP_STATE = {
+                expectedFeatures: null,
+                modelVersion: null,
+                uiMode: 'creditcard', // 'creditcard' | 'generic'
             };
         })();
 
@@ -905,6 +935,27 @@
                 const expectedFeatures = data && typeof data.expected_features === 'number' ? data.expected_features : null;
                 const modelVersion = data && data.model_version ? String(data.model_version) : '-';
 
+                window.APP_STATE.expectedFeatures = expectedFeatures;
+                window.APP_STATE.modelVersion = modelVersion;
+
+                // Auto-switch UI mode based on model schema.
+                if (typeof expectedFeatures === 'number' && expectedFeatures > 0 && expectedFeatures !== 30) {
+                    setUiMode('generic');
+                } else {
+                    setUiMode('creditcard');
+                }
+
+                const streamingSection = document.getElementById('streamingSection');
+                const expectText = document.getElementById('demoExpectText');
+                if (expectText) {
+                    expectText.textContent = (expectedFeatures === 30)
+                        ? '/predict expects 30 features: [Time, V1..V28, Amount]'
+                        : `/predict expects ${expectedFeatures ?? '-'} features (streaming demo requires 30).`;
+                }
+                if (streamingSection) {
+                    streamingSection.style.display = (expectedFeatures === 30 || expectedFeatures === null) ? '' : 'none';
+                }
+
                 document.getElementById('statusText').textContent =
                     modelLoaded
                         ? `API Ready • model_loaded=true • expected_features=${expectedFeatures ?? '-'} • ${modelVersion}`
@@ -918,8 +969,25 @@
                 document.getElementById('statusIndicator').style.opacity = '0.5';
             }
         }
+
+        function setUiMode(mode) {
+            const creditcard = document.getElementById('creditcardInputs');
+            const generic = document.getElementById('genericInputs');
+            const expectedEl = document.getElementById('expectedFeatureCount');
+
+            window.APP_STATE.uiMode = mode === 'generic' ? 'generic' : 'creditcard';
+
+            if (creditcard) creditcard.style.display = window.APP_STATE.uiMode === 'creditcard' ? '' : 'none';
+            if (generic) generic.style.display = window.APP_STATE.uiMode === 'generic' ? '' : 'none';
+
+            if (expectedEl) {
+                const n = window.APP_STATE.expectedFeatures;
+                expectedEl.textContent = (typeof n === 'number' && n > 0) ? String(n) : '-';
+            }
+        }
         
         function loadSampleTransaction() {
+            if (window.APP_STATE && window.APP_STATE.uiMode === 'generic') return;
             // Sample legitimate transaction from the dataset
             document.getElementById('timeInput').value = '0';
             document.getElementById('amountInput').value = '149.62';
@@ -927,8 +995,65 @@
             const sampleFeatures = '-1.36,-0.07,2.54,1.38,-0.34,0.46,0.24,0.10,0.36,0.09,-0.55,-0.62,-0.99,-0.31,1.47,-0.47,0.21,0.03,0.40,0.25,-0.02,0.28,-0.11,0.07,0.13,-0.19,0.13,-0.02';
             document.getElementById('featureInput').value = sampleFeatures;
         }
+
+        async function loadRandomTransactionFromApi() {
+            const errorSection = document.getElementById('errorSection');
+            errorSection.classList.remove('show');
+
+            try {
+                const uiMode = window.APP_STATE && window.APP_STATE.uiMode ? window.APP_STATE.uiMode : 'creditcard';
+                const url = uiMode === 'creditcard'
+                    ? `${getApiUrl()}/features/random?mode=creditcard`
+                    : `${getApiUrl()}/features/random`;
+
+                const response = await fetch(url);
+                if (!response.ok) {
+                    let detail = `HTTP ${response.status}`;
+                    try {
+                        const err = await response.json();
+                        if (err && err.detail) detail = String(err.detail);
+                    } catch (e) { /* ignore */ }
+                    showError(`Random feature request failed: ${detail}`);
+                    return;
+                }
+
+                const payload = await response.json();
+                const features = payload && Array.isArray(payload.features) ? payload.features : null;
+                const n = payload && typeof payload.n_features === 'number' ? payload.n_features : null;
+                if (!features || !n || features.length !== n) {
+                    showError('API returned an invalid feature vector.');
+                    return;
+                }
+
+                if (n === 30 && window.APP_STATE.uiMode === 'creditcard') {
+                    const timeValue = Number(features[0]);
+                    const amountValue = Number(features[29]);
+                    const v = features.slice(1, 29).map(v => Number(v));
+
+                    if (!isFinite(timeValue) || !isFinite(amountValue) || v.some(x => !isFinite(x))) {
+                        showError('API returned invalid numeric values for features.');
+                        return;
+                    }
+
+                    document.getElementById('timeInput').value = String(Math.round(timeValue));
+                    document.getElementById('amountInput').value = String(amountValue.toFixed(2));
+                    document.getElementById('featureInput').value = v.map(x => x.toFixed(4)).join(',');
+                } else {
+                    setUiMode('generic');
+                    const genericEl = document.getElementById('genericFeatureInput');
+                    if (genericEl) genericEl.value = features.map(x => Number(x).toFixed(6)).join(',');
+                }
+            } catch (error) {
+                showError(`Error: ${error.message}`);
+            }
+        }
         
         async function makePrediction() {
+            const uiMode = window.APP_STATE && window.APP_STATE.uiMode ? window.APP_STATE.uiMode : 'creditcard';
+            if (uiMode === 'generic') {
+                return makePredictionGeneric();
+            }
+
             const btn = document.getElementById('predictBtn');
             const loading = document.getElementById('loadingIndicator');
             const errorSection = document.getElementById('errorSection');
@@ -979,6 +1104,64 @@
                 const result = await response.json();
                 displayResult(result);
                 
+            } catch (error) {
+                loading.classList.remove('show');
+                showError(`Error: ${error.message}`);
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        async function makePredictionGeneric() {
+            const btn = document.getElementById('predictBtn');
+            const loading = document.getElementById('loadingIndicator');
+            const errorSection = document.getElementById('errorSection');
+            const resultSection = document.getElementById('resultSection');
+
+            errorSection.classList.remove('show');
+            resultSection.classList.remove('show');
+
+            const expected = window.APP_STATE && typeof window.APP_STATE.expectedFeatures === 'number'
+                ? window.APP_STATE.expectedFeatures
+                : null;
+            if (!expected || expected < 1) {
+                showError('API did not report expected feature count. Check /health.');
+                return;
+            }
+
+            const raw = (document.getElementById('genericFeatureInput').value || '').trim();
+            const parts = raw ? raw.split(',') : [];
+            const values = parts.map(v => parseFloat(v.trim()));
+
+            if (values.length !== expected) {
+                showError(`Expected ${expected} features, got ${values.length}.`);
+                return;
+            }
+            if (values.some(v => !Number.isFinite(v))) {
+                showError('Please enter only valid numeric values (comma-separated).');
+                return;
+            }
+
+            btn.disabled = true;
+            loading.classList.add('show');
+
+            try {
+                const response = await fetch(`${getApiUrl()}/predict`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ features: values })
+                });
+
+                loading.classList.remove('show');
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    showError(error.detail || 'Prediction failed');
+                    return;
+                }
+
+                const result = await response.json();
+                displayResult(result);
             } catch (error) {
                 loading.classList.remove('show');
                 showError(`Error: ${error.message}`);

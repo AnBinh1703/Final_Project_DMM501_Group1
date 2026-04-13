@@ -1,23 +1,22 @@
-# Huong Dan Chay Project (Local + Docker)
+# Quick Start (Local + Docker)
 
-Tai lieu nay huong dan cach chay day du he thong Fraud Detection theo 2 cach:
-- Chay local (Python venv, run ML pipeline, run API, run frontend, run tests)
-- Chay Docker Compose local (API + Frontend + MLflow + Prometheus + Grafana)
+This guide runs the full Fraud Detection system in two ways:
+- Local (Python venv, train pipeline, run API, run frontend, run tests)
+- Local Docker Compose (API + Frontend + MLflow + Prometheus + Grafana)
 
-Dataset (da co san tren may):
+Dataset (included in this repo):
 - `data/archive/creditcard.csv`
 
-Luu y:
-- File dataset CSV lon thuong KHONG commit vao Git (chi dat local).
-- Docker Compose mount thu muc `./artifacts` tu may host; hay tao artifacts truoc khi `docker compose up`.
+Notes:
+- Docker Compose mounts `./artifacts` from your host. Generate artifacts before running `docker compose up`.
 
 ## 0) Prerequisites
 - Python 3.11+
-- Docker + Docker Compose (neu muon chay full stack bang Docker)
+- Docker + Docker Compose (only needed for the full stack)
 
-## 1) Chay Local (khong can Docker)
+## 1) Run Local (no Docker)
 
-### 1.1 Tao virtual env + cai dependencies
+### 1.1 Create venv + install dependencies
 
 Linux/macOS:
 ```bash
@@ -39,9 +38,9 @@ pip install pytest-cov
 $env:MPLCONFIGDIR="C:\Temp\matplotlib"
 ```
 
-### 1.2 Tao artifacts tu dataset that (khuyen nghi)
+### 1.2 Generate artifacts from the real dataset (recommended)
 
-Day la workflow day du: data validation + EDA + baseline + improved + threshold tuning + model selection + SHAP.
+This is the full workflow: data validation + EDA + baseline + improved models + threshold tuning + model selection + SHAP.
 
 ```bash
 python -m src.pipelines.run_model_workflow \
@@ -50,13 +49,13 @@ python -m src.pipelines.run_model_workflow \
   --seed 42
 ```
 
-Artifacts quan trong:
+Key outputs:
 - Data validation:
   - `artifacts/reports/dataset_schema.json`
   - `artifacts/reports/missing_values.csv`
   - `artifacts/reports/class_distribution.json`
 - EDA figures: `artifacts/figures/*.png`
-- Model figures (phuc vu bao cao/presentation):
+- Model figures (useful for reports/presentations):
   - `artifacts/figures/baseline_threshold_sweep.png`
   - `artifacts/figures/improved_threshold_sweep.png`
   - `artifacts/figures/threshold_comparison.png`
@@ -70,20 +69,20 @@ Artifacts quan trong:
   - `artifacts/models/final_model.joblib`
   - `artifacts/models/model_info.json` (threshold + feature columns)
 
-### 1.3 (Option) Tao artifacts nhanh (synthetic dataset)
+### 1.3 (Optional) Generate artifacts quickly (synthetic dataset)
 
-Neu can demo nhanh, co the train synthetic:
+For a fast demo you can train on synthetic data:
 ```bash
 python -m src.pipelines.train_pipeline --data-path "" --artifacts-dir artifacts --fast
 ```
-Output:
+Outputs:
 - `artifacts/model.joblib`
 - `artifacts/model_info.json`
 - `artifacts/metrics_report.json`
 
-### 1.4 Run Backend API (FastAPI)
+### 1.4 Run the Backend API (FastAPI)
 
-Option A (dung final model tu dataset that):
+Option A (real dataset model):
 ```bash
 MODEL_PATH=artifacts/models/final_model.joblib \
 MODEL_VERSION=creditcard-production-v1 \
@@ -91,7 +90,7 @@ FRAUD_THRESHOLD=0.99 \
 uvicorn src.api.main:app --host 0.0.0.0 --port 8000
 ```
 
-Option B (dung model synthetic):
+Option B (synthetic model):
 ```bash
 MODEL_PATH=artifacts/model.joblib \
 MODEL_VERSION=local-demo \
@@ -104,22 +103,25 @@ Endpoints:
 - Swagger: `http://localhost:8000/docs`
 - OpenAPI JSON: `http://localhost:8000/openapi.json`
 - Metrics: `http://localhost:8000/metrics`
+- Random features: `http://localhost:8000/features/random`
 
-### 1.5 Run Frontend (demo UI)
+### 1.5 Run the Frontend (demo UI)
 
 ```bash
 cd frontend
 python -m http.server 8080 --bind 0.0.0.0
 ```
 
-Mo trinh duyet:
+Open:
 - `http://localhost:8080/index.html`
 
-### 1.6 Goi thu /predict (tu dong lay dung feature length)
+### 1.6 Call `/predict` using the correct feature length
 
 ```bash
 python - <<'PY'
-import json, urllib.request
+import json
+import urllib.request
+
 import requests
 
 health = requests.get("http://localhost:8000/health").json()
@@ -127,9 +129,9 @@ n = int(health["expected_features"] or 0)
 features = [0.0] * n
 
 req = urllib.request.Request(
-  "http://localhost:8000/predict",
-  data=json.dumps({"features": features}).encode(),
-  headers={"Content-Type": "application/json"},
+    "http://localhost:8000/predict",
+    data=json.dumps({"features": features}).encode(),
+    headers={"Content-Type": "application/json"},
 )
 print(urllib.request.urlopen(req).read().decode())
 PY
@@ -141,44 +143,44 @@ PY
 pytest -q --cov=src --cov-report=term-missing --cov-fail-under=80
 ```
 
-## 2) Chay Docker Compose Local (full stack)
+## 2) Run Docker Compose (full stack)
 
-### 2.1 Tao artifacts tren host (bat buoc)
+### 2.1 Generate artifacts on the host (required)
 
-Khuyen nghi (dataset that):
+Recommended (real dataset):
 ```bash
 python -m src.pipelines.run_model_workflow --data-path data/archive/creditcard.csv --artifacts-root artifacts --seed 42
 ```
 
-### 2.2 Start full stack
+### 2.2 Start the stack
 
 ```bash
 docker compose -f deployment/docker-compose.yml up --build
 ```
 
-Services:
+Service URLs:
 - API: `http://localhost:8000` (Swagger: `/docs`, Metrics: `/metrics`)
 - Frontend: `http://localhost:8080`
 - MLflow: `http://localhost:5000`
 - Prometheus: `http://localhost:9090`
-- Grafana: `http://localhost:3000` (mac dinh: admin/admin)
+- Grafana: `http://localhost:3000` (admin/admin by default)
 
-### 2.3 Kiem tra nhanh
+### 2.3 Quick checks
 
 ```bash
 curl -s http://localhost:8000/health
 curl -s http://localhost:8000/metrics | grep -m1 api_requests_total
 ```
 
-### 2.4 Kiem tra alerts (Prometheus)
+### 2.4 Alert rules (Prometheus)
 
-- Mo Prometheus: `http://localhost:9090`
-- Vao `Status -> Rules` hoac tab `Alerts`
-- Alert rules duoc load tu: `deployment/prometheus/alerts.yml`
+- Open Prometheus: `http://localhost:9090`
+- Navigate to `Status -> Rules` or the `Alerts` tab
+- Rules are loaded from: `deployment/prometheus/alerts.yml`
 
 ## 3) Troubleshooting
 
-### Port 8000/8080 bi chiem
+### Ports 8000/8080 already in use
 
 Linux:
 ```bash
@@ -193,31 +195,32 @@ netstat -ano | findstr :8080
 taskkill /PID <PID> /F
 ```
 
+If you can’t stop the existing services, use different ports. Example:
+```bash
+# Terminal 1 (API)
+MODEL_PATH=artifacts/model.joblib \
+CORS_ALLOW_ORIGINS=http://localhost:8090,http://127.0.0.1:8090 \
+uvicorn src.api.main:app --host 0.0.0.0 --port 8010
+```
+```bash
+# Terminal 2 (Frontend)
+cd frontend
+python -m http.server 8090 --bind 0.0.0.0
+```
+Open `http://localhost:8090/index.html?api=http://localhost:8010`.
+
 ### Matplotlib cache warning
 
-Neu thay warning ve Matplotlib cache khong ghi duoc, hay set:
+If Matplotlib cannot write its cache, set:
 ```bash
 export MPLCONFIGDIR=/tmp/matplotlib
 ```
 
-### verify_system.py
+### `verify_system.py`
 
-`verify_system.py` co payload mau theo schema Kaggle (Time + V1..V28 + Amount), nen phu hop voi dataset `creditcard.csv`.
-Neu ban train synthetic (so feature khac), hay dung doan Python o muc 1.6 de goi /predict theo dung feature length.
+`verify_system.py` uses the Kaggle creditcard feature order (Time + V1..V28 + Amount), so it is compatible with `creditcard.csv`.
+If you trained a synthetic model (different feature length), use the Python snippet in section 1.6 to call `/predict` with the correct length.
 
-## File Structure (rut gon)
-
-```
-.
-├── src/
-├── tests/
-├── frontend/
-├── deployment/
-├── data/archive/creditcard.csv
-└── artifacts/
-    ├── reports/
-    ├── figures/
-    ├── benchmarks/
     └── models/
         ├── final_model.joblib
         └── model_info.json

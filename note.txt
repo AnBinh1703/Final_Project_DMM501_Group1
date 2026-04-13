@@ -1745,7 +1745,7 @@ System ready for live demonstration.
 - ✓ requirements.txt — All Python dependencies
 
 **Documentation:**
-- ✓ QUICK_START_VN.md — Vietnamese/English setup guide (created previously)
+- ✓ QUICK_START.md — English setup guide
 - ✓ SYSTEM_STATUS_REPORT.md — Technical status report (created previously)
 
 ### System Capabilities
@@ -1948,4 +1948,3 @@ I have successfully executed all 17 phases of the fraud detection system build w
 - Model metrics: PR-AUC 0.8156, F1 0.8321 (from training phase)
 
 The system is **READY FOR LIVE DEMONSTRATION** at http://localhost:8080 with API backend at http://localhost:8000. All code is production-quality, thoroughly tested, and includes comprehensive error handling. 
-

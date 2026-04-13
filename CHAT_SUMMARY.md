@@ -82,7 +82,7 @@
 - ✓ Docker setup: Dockerfile.api, Dockerfile.frontend, docker-compose.yml
 - ✓ Monitoring: Prometheus and Grafana configurations
 - ✓ Tests: pytest suite with API and frontend tests
-- ✓ Documentation: README.md, QUICK_START_VN.md, architecture docs
+- ✓ Documentation: README.md, QUICK_START.md, architecture docs
 
 **Key Findings**:
 - All dependencies properly structured
@@ -2236,7 +2236,7 @@ Audit the current project against the final project requirements and grading rub
                                                                                                                                                                                                                                          
 • Running Get-Content artifacts\reports\benchmark_summary.md -TotalCount 200                                                                                                                                                             
                                                                                                                                                                                                                                          
-• Running Get-Content QUICK_START_VN.md -TotalCount 220                                                                                                                                                                                  
+• Running Get-Content QUICK_START.md -TotalCount 220
                                                                                                                                                                                                                                          
 • Running Get-Content EXECUTION_NOTES_&_PRESENTATION_GUIDE.md -TotalCount 200                                                                                                                                                            
                                                                                                                                                                                                                                          
@@ -2267,8 +2267,8 @@ Audit the current project against the final project requirements and grading rub
     5d330e21e22b489cab1895a448adbfc0                                                                                                                                                                                                     
     e7ad80f147924f4db3a8f78558604ee1                                                                                                                                                                                                     
                                                                                                                                                                                                                                          
-• Ran Get-Content QUICK_START_VN.md -TotalCount 220                                                                                                                                                                                      
-  └ # Hướng Dẫn Chạy Hệ Thống Phát Hiện Gian Lận (Fraud Detection System)                                                                                                                                                                
+• Ran Get-Content QUICK_START.md -TotalCount 220
+  └ # Quick Start (Local + Docker)
                                                                                                                                                                                                                                          
     … +216 lines (ctrl + t to view transcript)                                                                                                                                                                                           
     [3/6] Testing High-Value Transaction...                                                                                                                                                                                              
@@ -2558,7 +2558,7 @@ Audit the current project against the final project requirements and grading rub
                                                                                                                                                                                                                                          
 • Running Select-String -Path tests\integration\test_api_predict_no_model.py -Pattern "test_predict_returns_503" | Select-Object -First 1                                                                                                
                                                                                                                                                                                                                                          
-• Running Select-String -Path QUICK_START_VN.md -Pattern "Quick Start" | Select-Object -First 1
+• Running Select-String -Path QUICK_START.md -Pattern "Quick Start" | Select-Object -First 1
                                                                                                                                                                                                                                          
 • Ran Select-String -Path ARCHITECTURE.md -Pattern "Architecture" | Select-Object -First 1                                                                                                                                               
   └                                                                                                                                                                                                                                      
@@ -2624,9 +2624,9 @@ Audit the current project against the final project requirements and grading rub
     tests\integration\test_api_predict_no_model.py:6:def test_predict_returns_503_when_model_missing() -> None:                                                                                                                          
                                                                                                                                                                                                                                          
 
-• Ran Select-String -Path QUICK_START_VN.md -Pattern "Quick Start" | Select-Object -First 1
+• Ran Select-String -Path QUICK_START.md -Pattern "Quick Start" | Select-Object -First 1
   └                                                                                                                                                                                                                                      
-    QUICK_START_VN.md:3:## 📋 Quick Start / Bắt Đầu Nhanh                                                                                                                                                                                
+    QUICK_START.md:1:# Quick Start (Local + Docker)
                                                                                                                                                                                                                                          
                                                                                                                                                                                                                                          
 • Ran Select-String -Path "EXECUTION_NOTES_&_PRESENTATION_GUIDE.md" -Pattern "PRESENTATION GUIDE" | Select-Object -First 1                                                                                                               
@@ -2684,7 +2684,7 @@ Audit the current project against the final project requirements and grading rub
     EXECUTION_NOTES_&_PRESENTATION_GUIDE.md:98:- Current: No written explainability, fairness, privacy, ethics sections
 
 
-• I need to focus on the documentation, starting with a minimal README and a quick start guide. I’ll cite specific lines like README.md:1, QUICK_START_VN.md:3, and SYSTEM_STATUS_REPORT.md:1 for claims. However, I should be careful   
+• I need to focus on the documentation, starting with a minimal README and a quick start guide. I’ll cite specific lines like README.md:1, QUICK_START.md:1, and SYSTEM_STATUS_REPORT.md:1 for claims. However, I should be careful
   because some documents might overstate things. For example, I might refer to SYSTEM_STATUS_REPORT.md:5 concerning "FULLY OPERATIONAL" to ensure I capture accurate information.
 
 • Ran Select-String -Path SYSTEM_STATUS_REPORT.md -Pattern "FULLY OPERATIONAL" | Select-Object -First 1
@@ -2802,7 +2802,7 @@ Audit the current project against the final project requirements and grading rub
   - Actual evidence found:                                                                                                                                                                                                               
       - README is minimal (README.md:1).                                                                                                                                                                                                 
       - API docs exist at runtime via FastAPI (OpenAPI verified; app defined in src/api/main.py:20).                                                                                                                                     
-      - Quick-start guide exists (QUICK_START_VN.md:3).                                                                                                                                                                                  
+      - Quick-start guide exists (QUICK_START.md:1).
       - Major doc gaps: architecture doc is empty (ARCHITECTURE.md:1); contributing doc is a placeholder (exists but not useful); multiple “status” docs contain over-claims (e.g., “READY FOR PRODUCTION” in SYSTEM_STATUS_REPORT.md:4) 
         that are not supported by verified Docker/monitoring evidence in this audit.                                                                                                                                                     
   - Status label: Partial                                                                                                                                                                                                                
@@ -2931,7 +2931,7 @@ Audit the current project against the final project requirements and grading rub
                                                                                                                                                                                                                                          
   F. Documentation (10%): Satisfactory                                                                                                                                                                                                   
                                                                                                                                                                                                                                          
-  - Why: quick start exists (QUICK_START_VN.md:3), but README/architecture/contributing are not submission-grade (README.md:1, ARCHITECTURE.md:1).                                                                                       
+  - Why: quick start exists (QUICK_START.md:1), but README/architecture/contributing are not submission-grade (README.md:1, ARCHITECTURE.md:1).
   - To reach Excellent: single authoritative README + architecture + ops runbook; remove over-claims (SYSTEM_STATUS_REPORT.md:4).                                                                                                        
                                                                                                                                                                                                                                          
   G. Presentation Readiness: Satisfactory                                                                                                                                                                                                

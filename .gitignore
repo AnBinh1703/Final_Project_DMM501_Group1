@@ -6,3 +6,4 @@ __pycache__/
 .DS_Store
 .ipynb_checkpoints/
 # Large data files - keep only schema/readme
+data/archive/creditcard.csv

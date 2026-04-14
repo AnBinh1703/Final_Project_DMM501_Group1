@@ -6,30 +6,21 @@ from pathlib import Path
 import numpy as np
 
 from src.api.main import app
-from src.pipelines.train_pipeline import run_training
 from tests.integration.asgi_client import LifespanManager, asgi_post_json, asgi_request
 
 
-def _train_to_tmp(tmp_path: Path) -> Path:
-    artifacts_dir = tmp_path / "artifacts"
-    result = run_training(
-        data_path=None,
-        artifacts_dir=str(artifacts_dir),
-        target_col="Class",
-        min_precision=0.1,
-        n_samples_if_synthetic=500,
-        fast=True,
-    )
-    return Path(result["model_path"])
+def _final_model_path() -> Path:
+    p = Path("artifacts/models/final_model.joblib")
+    if not p.exists():
+        raise RuntimeError("Expected final model artifact missing at artifacts/models/final_model.joblib")
+    return p
 
 
-def test_predict_200_when_model_loaded(monkeypatch, tmp_path: Path) -> None:
-    model_path = _train_to_tmp(tmp_path)
-
-    # Force a deterministic threshold behavior for the test.
+def test_predict_200_when_model_loaded(monkeypatch) -> None:
+    model_path = _final_model_path()
     monkeypatch.setenv("MODEL_PATH", str(model_path))
-    monkeypatch.setenv("MODEL_VERSION", "test-model")
-    monkeypatch.setenv("FRAUD_THRESHOLD", "0.0")
+    monkeypatch.setenv("MODEL_VERSION", "final-artifact")
+    monkeypatch.delenv("FRAUD_THRESHOLD", raising=False)
 
     async def run() -> None:
         async with LifespanManager(app):
@@ -43,9 +34,19 @@ def test_predict_200_when_model_loaded(monkeypatch, tmp_path: Path) -> None:
             r = await asgi_post_json(app, "/predict", {"features": features})
             assert r.status_code == 200
             body = r.json()
-            assert body["model_version"] == "test-model"
+            assert body["model_version"] == "final-artifact"
             assert 0.0 <= float(body["fraud_probability"]) <= 1.0
-            assert int(body["fraud_label"]) == 1  # threshold=0.0 => always 1
+            assert float(body["threshold"]) == 0.99
+            assert int(body["n_features"]) == expected_features
+            assert isinstance(body["feature_names"], list)
+            assert len(body["feature_names"]) == expected_features
+
+            # Same request via features_by_name must produce the same probability regardless of dict order.
+            by_name = {name: 0.0 for name in reversed(body["feature_names"])}
+            r2 = await asgi_post_json(app, "/predict", {"features_by_name": by_name})
+            assert r2.status_code == 200
+            body2 = r2.json()
+            assert abs(float(body2["fraud_probability"]) - float(body["fraud_probability"])) < 1e-12
 
             metrics = await asgi_request(app, method="GET", url="/metrics")
             assert metrics.status_code == 200
@@ -56,8 +57,8 @@ def test_predict_200_when_model_loaded(monkeypatch, tmp_path: Path) -> None:
     asyncio.run(run())
 
 
-def test_predict_422_on_feature_length_mismatch(monkeypatch, tmp_path: Path) -> None:
-    model_path = _train_to_tmp(tmp_path)
+def test_predict_422_on_feature_length_mismatch(monkeypatch) -> None:
+    model_path = _final_model_path()
     monkeypatch.setenv("MODEL_PATH", str(model_path))
 
     async def run() -> None:

@@ -111,9 +111,9 @@ Artifacts created:
 
 ### 3) Run the API with the model loaded
 ```bash
-MODEL_PATH=artifacts/model.joblib \
-MODEL_VERSION=local-demo \
-FRAUD_THRESHOLD=0.14 \
+MODEL_PATH=artifacts/models/final_model.joblib \
+MODEL_VERSION=final-model \
+FRAUD_THRESHOLD=0.99 \
 uvicorn src.api.main:app --host 0.0.0.0 --port 8000
 ```
 
@@ -133,9 +133,8 @@ curl -s http://localhost:8000/openapi.json -o openapi.json
 
 Predict:
 ```bash
-curl -s http://localhost:8000/predict \
-  -H 'Content-Type: application/json' \
-  -d '{"features":[0.0,1.0,2.0]}' | jq
+curl -s http://localhost:8000/features/random?mode=creditcard | jq '{features:.features}' > payload.json
+curl -s http://localhost:8000/predict -H 'Content-Type: application/json' -d @payload.json | jq
 ```
 
 Error cases:
@@ -153,7 +152,7 @@ API image:
 ```bash
 docker build -f deployment/api/Dockerfile -t fraud-api .
 docker run --rm -p 8000:8000 \
-  -e MODEL_PATH=/app/artifacts/model.joblib \
+  -e MODEL_PATH=/app/artifacts/models/final_model.joblib \
   -v "$PWD/artifacts:/app/artifacts" \
   fraud-api
 ```

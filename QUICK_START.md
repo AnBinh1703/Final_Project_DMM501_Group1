@@ -20,7 +20,7 @@ Notes:
 
 Linux/macOS:
 ```bash
-python -m venv .venv
+python3 -m venv .venv
 . .venv/bin/activate
 python -m pip install -U pip
 pip install -r requirements.txt
@@ -82,7 +82,7 @@ Outputs:
 
 ### 1.4 Run the Backend API (FastAPI)
 
-Option A (real dataset model):
+Option A (real dataset model, explicit):
 ```bash
 MODEL_PATH=artifacts/models/final_model.joblib \
 MODEL_VERSION=creditcard-production-v1 \
@@ -90,11 +90,17 @@ FRAUD_THRESHOLD=0.99 \
 uvicorn src.api.main:app --host 0.0.0.0 --port 8000
 ```
 
-Option B (synthetic model):
+Option B (synthetic model, explicit):
 ```bash
 MODEL_PATH=artifacts/model.joblib \
 MODEL_VERSION=local-demo \
 FRAUD_THRESHOLD=0.14 \
+uvicorn src.api.main:app --host 0.0.0.0 --port 8000
+```
+
+Option C (real dataset model, zero-config):
+- If you already generated `artifacts/models/final_model.joblib`, the API will auto-load it when `MODEL_PATH` is not set.
+```bash
 uvicorn src.api.main:app --host 0.0.0.0 --port 8000
 ```
 
@@ -107,29 +113,57 @@ Endpoints:
 
 ### 1.5 Run the Frontend (demo UI)
 
+The frontend is a real-time fraud monitoring dashboard that calls the backend (no fake predictions).
+
+Recommended (pick a free port automatically):
 ```bash
 cd frontend
-python -m http.server 8080 --bind 0.0.0.0
+python3 -m http.server 0 --bind 127.0.0.1
 ```
 
-Open:
-- `http://localhost:8080/index.html`
+The server will print the chosen port, e.g.:
+- `Serving HTTP on 127.0.0.1 port 46321 ...`
+
+Open the UI:
+- `http://127.0.0.1:<PORT>/index.html`
+
+If you prefer a fixed port (only if free):
+```bash
+python3 -m http.server 8082 --bind 127.0.0.1
+```
+Open `http://127.0.0.1:8082/index.html`.
+
+Using the UI:
+1. Confirm the top-left connection pill turns green (backend reachable + `model_loaded=true`).
+2. Ensure `/health` reports `expected_features=30` (required by the trained CreditCard model contract).
+3. Click **Start Stream** (Real Sample Stream or Random Generated Stream).
+4. Watch:
+   - KPI cards update live
+   - Alerts populate for Suspicious/Fraud
+   - Transaction feed appends rows (append-only, keeps recent history)
+   - Chart updates in real time
+
+If API is not on `http://localhost:8000`, set **API Base URL** in the control panel and click **Apply**.
 
 ### 1.6 Call `/predict` using the correct feature length
 
 ```bash
-python - <<'PY'
+python3 - <<'PY'
 import json
 import urllib.request
+import urllib.error
 
-import requests
+API = "http://localhost:8000"
 
-health = requests.get("http://localhost:8000/health").json()
-n = int(health["expected_features"] or 0)
-features = [0.0] * n
+health = json.loads(urllib.request.urlopen(f"{API}/health").read().decode("utf-8"))
+n = int(health.get("expected_features") or 0)
+if n != 30:
+    raise SystemExit(f"expected_features must be 30 for the creditcard contract, got {n}")
+
+features = [0.0] * 30
 
 req = urllib.request.Request(
-    "http://localhost:8000/predict",
+    f"{API}/predict",
     data=json.dumps({"features": features}).encode(),
     headers={"Content-Type": "application/json"},
 )
@@ -160,7 +194,7 @@ docker compose -f deployment/docker-compose.yml up --build
 
 Service URLs:
 - API: `http://localhost:8000` (Swagger: `/docs`, Metrics: `/metrics`)
-- Frontend: `http://localhost:8080`
+- Frontend: `http://localhost:8080` (change the port mapping in `deployment/docker-compose.yml` if 8080 is already in use)
 - MLflow: `http://localhost:5000`
 - Prometheus: `http://localhost:9090`
 - Grafana: `http://localhost:3000` (admin/admin by default)
@@ -184,8 +218,7 @@ curl -s http://localhost:8000/metrics | grep -m1 api_requests_total
 
 Linux:
 ```bash
-sudo lsof -i :8000
-sudo lsof -i :8080
+ss -ltnp | grep -E ':(8000|8080)\\b' || true
 ```
 
 Windows PowerShell:
@@ -195,19 +228,23 @@ netstat -ano | findstr :8080
 taskkill /PID <PID> /F
 ```
 
-If you can’t stop the existing services, use different ports. Example:
+If you can’t stop the existing services, use different ports.
+
+Example (API on 8010):
 ```bash
 # Terminal 1 (API)
 MODEL_PATH=artifacts/model.joblib \
-CORS_ALLOW_ORIGINS=http://localhost:8090,http://127.0.0.1:8090 \
 uvicorn src.api.main:app --host 0.0.0.0 --port 8010
 ```
+
+Then start the frontend on any free port:
 ```bash
-# Terminal 2 (Frontend)
 cd frontend
-python -m http.server 8090 --bind 0.0.0.0
+python3 -m http.server 0 --bind 127.0.0.1
 ```
-Open `http://localhost:8090/index.html?api=http://localhost:8010`.
+And set the **API Base URL** in the UI to `http://localhost:8010`.
+
+Note: Local dev CORS no longer requires `CORS_ALLOW_ORIGINS` when using localhost ports.
 
 ### Matplotlib cache warning
 
@@ -220,44 +257,6 @@ export MPLCONFIGDIR=/tmp/matplotlib
 
 `verify_system.py` uses the Kaggle creditcard feature order (Time + V1..V28 + Amount), so it is compatible with `creditcard.csv`.
 If you trained a synthetic model (different feature length), use the Python snippet in section 1.6 to call `/predict` with the correct length.
-
-    └── models/
-        ├── final_model.joblib
-        └── model_info.json
-```
-
----
-
-## 🚀 Workflow Demo / Quy Trình Demo
-
-### Scenario 1: Dự Đoán Giao Dịch Hợp Pháp
-
-1. Mở http://127.0.0.1:8080/index.html
-2. Click "📋 Load Sample"
-3. Giao dịch mẫu sẽ tải (Amount: $149.62)
-4. Click "🔍 Predict Fraud"
-5. Kết quả: "✓ LEGITIMATE" (xác suất chiếm 0%)
-
-### Scenario 2: Dự Đoán Giao Dịch Nghi Vấn
-
-1. Click "📋 Load Sample" để tải mẫu
-2. Thay đổi "Amount" thành "$5000"
-3. Click "🔍 Predict Fraud"
-4. Xem kết quả dự đoán
-
-### Scenario 3: Kiểm Tra Metrics
-
-1. Mở http://127.0.0.1:8000/metrics
-2. Xem các chỉ số:
-   - `api_requests_total` - Tổng request
-   - `api_request_latency_seconds` - Độ trễ
-   - `fraud_predictions_total` - Dự đoán gian lận
-
----
-
-## 📞 Support / Hỗ Trợ
-
-- **API Status**: http://127.0.0.1:8000/health
 - **Documentation**: http://127.0.0.1:8000/docs
 - **Metrics**: http://127.0.0.1:8000/metrics
 

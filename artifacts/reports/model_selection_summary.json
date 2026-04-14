@@ -1,6 +1,6 @@
 {
   "selected_model": "logistic_regression",
-  "selection_timestamp_utc": "2026-04-13T16:31:44.013282+00:00",
+  "selection_timestamp_utc": "2026-04-14T08:17:58.395658+00:00",
   "selection_basis": "Primary=PR-AUC and Recall at tuned threshold; secondary=F1 and precision trade-off",
   "baseline_tuned_metrics": {
     "threshold": 0.99,

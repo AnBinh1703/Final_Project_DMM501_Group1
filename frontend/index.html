@@ -1,1210 +1,347 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fraud Detection System - Demo</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Real-Time Fraud Monitoring Dashboard</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
 
-        :root {
-            --bg0: #f8fafc;
-            --bg1: #f1f5f9;
-            --surface: #ffffff;
-            --text: #0f172a;
-            --muted: #475569;
-            --line: #e2e8f0;
-            --accent: #0f766e;
-            --accent2: #14b8a6;
-            --danger: #b91c1c;
-            --ok: #15803d;
-        }
-        
-        body {
-            font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, sans-serif;
-            background:
-                radial-gradient(900px 500px at 10% -10%, rgba(20, 184, 166, 0.25), transparent 55%),
-                radial-gradient(900px 500px at 100% 0%, rgba(15, 118, 110, 0.12), transparent 60%),
-                linear-gradient(180deg, var(--bg0) 0%, var(--bg1) 100%);
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-            color: var(--text);
-        }
-        
-        .container {
-            background: var(--surface);
-            border-radius: 16px;
-            box-shadow: 0 24px 70px rgba(2, 6, 23, 0.18);
-            border: 1px solid rgba(2, 6, 23, 0.06);
-            max-width: 1200px;
-            width: 100%;
-            padding: 32px;
-        }
-
-        @media (max-width: 720px) {
-            body { padding: 12px; }
-            .container { padding: 18px; }
-        }
-        
-        .header {
-            text-align: left;
-            margin-bottom: 40px;
-        }
-        
-        .header h1 {
-            font-family: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
-            color: var(--text);
-            font-size: 30px;
-            margin-bottom: 8px;
-        }
-        
-        .header p {
-            color: var(--muted);
-            font-size: 13px;
-        }
-        
-        .form-section {
-            margin-bottom: 30px;
-        }
-        
-        .form-section h2 {
-            color: var(--text);
-            font-size: 16px;
-            margin-bottom: 15px;
-            padding-bottom: 10px;
-            border-bottom: 2px solid var(--line);
-        }
-        
-        .input-group {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-            gap: 15px;
-            margin-bottom: 20px;
-        }
-        
-        .form-input {
-            display: flex;
-            flex-direction: column;
-        }
-        
-        .form-input label {
-            font-size: 12px;
-            color: var(--muted);
-            margin-bottom: 5px;
-            font-weight: 500;
-        }
-        
-        .form-input input {
-            padding: 10px 12px;
-            border: 1px solid #ddd;
-            border-radius: 6px;
-            font-size: 14px;
-            transition: border-color 0.2s;
-        }
-        
-        .form-input input:focus {
-            outline: none;
-            border-color: var(--accent);
-            box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.16);
-        }
-        
-        .button-group {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
-        }
-        
-        button {
-            flex: 1;
-            padding: 12px 16px;
-            border: none;
-            border-radius: 6px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        
-        .predict-btn {
-            background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%);
-            color: white;
-        }
-        
-        .predict-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 12px 24px rgba(15, 118, 110, 0.22);
-        }
-        
-        .predict-btn:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none;
-        }
-        
-        .sample-btn {
-            background: #f0f0f0;
-            color: #333;
-        }
-        
-        .sample-btn:hover {
-            background: #e8e8e8;
-        }
-        
-        .result-section {
-            display: none;
-            background: #f8fafc;
-            border-radius: 8px;
-            padding: 20px;
-            border-left: 4px solid var(--accent);
-        }
-        
-        .result-section.show {
-            display: block;
-        }
-        
-        .result-section h3 {
-            color: var(--text);
-            margin-bottom: 12px;
-            font-size: 14px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        
-        .result-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 10px 0;
-            border-bottom: 1px solid #e8e8e8;
-        }
-        
-        .result-item:last-child {
-            border-bottom: none;
-        }
-        
-        .result-label {
-            color: var(--muted);
-            font-size: 14px;
-        }
-        
-        .result-value {
-            font-weight: 600;
-            color: var(--text);
-            font-size: 14px;
-        }
-        
-        .fraud-badge {
-            display: inline-block;
-            padding: 6px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 600;
-        }
-        
-        .fraud-badge.fraud {
-            background: #fee;
-            color: var(--danger);
-        }
-        
-        .fraud-badge.legitimate {
-            background: #efe;
-            color: var(--ok);
-        }
-        
-        .probability-bar {
-            background: #e8e8e8;
-            border-radius: 4px;
-            height: 8px;
-            margin-top: 4px;
-            overflow: hidden;
-        }
-        
-        .probability-fill {
-            height: 100%;
-            background: linear-gradient(90deg, var(--accent), var(--accent2));
-            border-radius: 4px;
-        }
-        
-        .error-section {
-            display: none;
-            background: #fee;
-            color: var(--danger);
-            border: 1px solid #fcc;
-            border-radius: 8px;
-            padding: 15px;
-            margin-bottom: 20px;
-            font-size: 14px;
-        }
-        
-        .error-section.show {
-            display: block;
-        }
-        
-        .loading {
-            display: none;
-            text-align: center;
-            color: var(--accent);
-            font-size: 14px;
-            margin-top: 10px;
-        }
-        
-        .loading.show {
-            display: block;
-        }
-        
-        .spinner {
-            display: inline-block;
-            width: 16px;
-            height: 16px;
-            border: 2px solid var(--accent);
-            border-top-color: transparent;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-            margin-right: 8px;
-        }
-        
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-        
-        .status-indicator {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 8px 12px;
-            background: #f0f0f0;
-            border-radius: 6px;
-            font-size: 12px;
-            color: #666;
-        }
-
-        .api-config {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin: 12px 0 22px 0;
-            flex-wrap: wrap;
-        }
-
-        .api-config label {
-            font-size: 12px;
-            color: #666;
-            font-weight: 600;
-        }
-
-        .api-config input {
-            flex: 1;
-            min-width: 240px;
-            padding: 10px 12px;
-            border: 1px solid #ddd;
-            border-radius: 6px;
-            font-size: 13px;
-            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-        }
-
-        .api-config button {
-            flex: 0 0 auto;
-            padding: 10px 14px;
-            border-radius: 6px;
-            background: #f0f0f0;
-            color: #333;
-            font-weight: 700;
-        }
-
-        .feature-textarea {
-            width: 100%;
-            height: 130px;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 6px;
-            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-            font-size: 12px;
-            line-height: 1.35;
-            resize: vertical;
-        }
-
-        .feature-textarea:focus {
-            outline: none;
-            border-color: var(--accent);
-            box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.16);
-        }
-
-        .hint {
-            margin-top: 8px;
-            color: #64748b;
-            font-size: 12px;
-            line-height: 1.35;
-        }
-
-        .hint code {
-            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-            font-size: 12px;
-        }
-        
-        .status-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: var(--ok);
-            animation: pulse 2s infinite;
-        }
-        
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-        
-        /* Streaming Demo Styles */
-        .demo-section {
-            background: #f5f5f5;
-            border-radius: 8px;
-            padding: 20px;
-            margin: 20px 0;
-            border: 2px solid rgba(15, 118, 110, 0.25);
-        }
-        
-        .demo-section h2 {
-            color: var(--accent);
-            font-size: 18px;
-            margin-bottom: 15px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        
-        .demo-controls-group {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 15px;
-            flex-wrap: wrap;
-        }
-        
-        .demo-btn {
-            padding: 10px 16px;
-            border: none;
-            border-radius: 6px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        
-        .demo-btn.stream {
-            background: #4CAF50;
-            color: white;
-        }
-        
-        .demo-btn.stream:hover:not(:disabled) {
-            background: #45a049;
-            transform: translateY(-2px);
-        }
-        
-        .demo-btn.stream:disabled {
-            background: #cccccc;
-            cursor: not-allowed;
-        }
-        
-        .demo-btn.random {
-            background: #2196F3;
-            color: white;
-        }
-        
-        .demo-btn.random:hover:not(:disabled) {
-            background: #0b7dda;
-            transform: translateY(-2px);
-        }
-        
-        .demo-btn.random:disabled {
-            background: #cccccc;
-            cursor: not-allowed;
-        }
-        
-        .demo-btn.control {
-            background: #ff9800;
-            color: white;
-        }
-        
-        .demo-btn.control:hover:not(:disabled) {
-            background: #e68900;
-        }
-        
-        .demo-btn.control:disabled {
-            background: #cccccc;
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-        
-        .demo-speed-control {
-            display: flex;
-            gap: 5px;
-            align-items: center;
-            margin-bottom: 15px;
-        }
-        
-        .demo-speed-control label {
-            font-size: 12px;
-            font-weight: 600;
-            color: #333;
-        }
-        
-        .demo-speed-btn {
-            padding: 6px 10px;
-            border: 2px solid #ddd;
-            background: white;
-            border-radius: 4px;
-            font-size: 12px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        
-        .demo-speed-btn:hover {
-            border-color: var(--accent);
-        }
-        
-        .demo-speed-btn.speed-active {
-            background: var(--accent);
-            color: white;
-            border-color: var(--accent);
-        }
-        
-        .demo-counters {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
-            gap: 10px;
-            margin-bottom: 20px;
-            background: white;
-            padding: 15px;
-            border-radius: 6px;
-        }
-        
-        .demo-counter {
-            text-align: center;
-            border: 1px solid #e0e0e0;
-            border-radius: 4px;
-            padding: 10px;
-            background: white;
-        }
-        
-        .demo-counter-label {
-            font-size: 11px;
-            color: #999;
-            font-weight: 600;
-            margin-bottom: 5px;
-            text-transform: uppercase;
-        }
-        
-        .demo-counter-value {
-            font-size: 24px;
-            font-weight: bold;
-            color: var(--accent);
-        }
-        
-        .demo-counter.fraud .demo-counter-value {
-            color: #d32f2f;
-        }
-        
-        .demo-counter.legit .demo-counter-value {
-            color: #388e3c;
-        }
-        
-        .demo-feed-container {
-            background: white;
-            border-radius: 6px;
-            border: 1px solid #e0e0e0;
-            max-height: 300px;
-            overflow-y: auto;
-            margin-top: 10px;
-        }
-        
-        .demo-feed {
-            display: flex;
-            flex-direction: column-reverse;
-        }
-        
-        .demo-feed-item {
-            display: grid;
-            grid-template-columns: 64px 72px 66px 64px 44px 1fr;
-            gap: 10px;
-            padding: 8px 12px;
-            border-bottom: 1px solid #f0f0f0;
-            font-size: 11px;
-            border-left: 3px solid #ccc;
-        }
-        
-        .demo-feed-item:hover {
-            background: #f9f9f9;
-        }
-        
-        .demo-feed-item.demo-fraud {
-            background: #ffebee;
-            border-left-color: #d32f2f;
-        }
-        
-        .demo-feed-item.demo-legitimate {
-            background: #e8f5e9;
-            border-left-color: #388e3c;
-        }
-        
-        .demo-feed-time {
-            font-size: 10px;
-            color: #999;
-        }
-        
-        .demo-feed-amount {
-            font-weight: 600;
-            color: #333;
-        }
-        
-        .demo-feed-prob {
-            font-weight: 600;
-            color: var(--accent);
-        }
-        
-        .demo-feed-label {
-            font-weight: 700;
-            text-align: center;
-        }
-        
-        .demo-feed-item.demo-fraud .demo-feed-label {
-            color:#d32f2f;
-        }
-        
-        .demo-feed-item.demo-legitimate .demo-feed-label {
-            color: #388e3c;
-        }
-        
-        .demo-feed-latency {
-            font-size: 10px;
-            color: #666;
-            text-align: right;
-        }
-        
-        .demo-feed-empty {
-            text-align: center;
-            padding: 30px 20px;
-            color: #999;
-            font-size: 13px;
-        }
-
-        .demo-feed-header {
-            display: grid;
-            grid-template-columns: 64px 72px 66px 64px 44px 1fr;
-            gap: 10px;
-            padding: 8px 12px;
-            border-bottom: 1px solid #eee;
-            font-size: 11px;
-            color: #64748b;
-            font-weight: 800;
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
-            background: #fafafa;
-        }
-
-        .demo-feed-request {
-            font-size: 10px;
-            color: #555;
-            text-align: right;
-            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-
-        .demo-grid {
-            display: grid;
-            grid-template-columns: 1.1fr 0.9fr;
-            gap: 16px;
-            align-items: start;
-            margin-top: 14px;
-        }
-
-        @media (max-width: 980px) {
-            .demo-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        .demo-panel {
-            background: white;
-            border-radius: 8px;
-            border: 1px solid #e6e6e6;
-            padding: 14px;
-        }
-
-        .demo-panel h3 {
-            font-size: 13px;
-            color: #333;
-            margin-bottom: 10px;
-            font-weight: 800;
-            letter-spacing: 0.2px;
-            text-transform: uppercase;
-        }
-
-        .demo-banner {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-            justify-content: space-between;
-            padding: 10px 12px;
-            border-radius: 8px;
-            background: #ecfeff;
-            border: 1px solid #a5f3fc;
-            margin: 12px 0;
-            font-size: 12px;
-            color: #0f172a;
-            flex-wrap: wrap;
-        }
-
-        .demo-banner .mono {
-            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-        }
-
-        .demo-error {
-            background: #fff1f2;
-            border-color: #fecdd3;
-            color: #7f1d1d;
-        }
-
-        .demo-chart {
-            width: 100%;
-            height: 220px;
-            border: 1px solid #eee;
-            border-radius: 6px;
-            display: block;
-            background: linear-gradient(180deg, #ffffff 0%, #fafafa 100%);
-        }
-
-        @media (max-width: 720px) {
-            .button-group { flex-direction: column; }
-            .feature-textarea { height: 150px; }
-            .demo-feed-header,
-            .demo-feed-item {
-                grid-template-columns: 64px 72px 66px 64px;
-            }
-            .demo-col-thr,
-            .demo-col-req,
-            .demo-feed-latency,
-            .demo-feed-request {
-                display: none;
-            }
-            .demo-feed-container { max-height: 260px; }
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>Fraud Detection System</h1>
-            <p>Real-time scoring demo (FastAPI + Prometheus metrics)</p>
+  <body>
+    <header class="app-header">
+      <div class="header-left">
+        <div class="title-row">
+          <h1>Real-Time Fraud Monitoring</h1>
+          <span class="pill" id="connectionPill">
+            <span class="dot dot-muted" id="connectionDot"></span>
+            <span id="connectionText">Connecting…</span>
+          </span>
         </div>
-        
-        <div class="status-indicator" id="statusIndicator">
-            <span class="status-dot"></span>
-            <span id="statusText">Connecting...</span>
+        <p class="subtitle">Live transaction scoring via backend `/predict` (FastAPI) — demo-ready dashboard</p>
+      </div>
+
+      <div class="header-right">
+        <nav class="tabs" aria-label="Views">
+          <button class="tab tab-active" id="tabDashboard" type="button">Dashboard</button>
+          <button class="tab" id="tabReview" type="button">Check &amp; Handle</button>
+        </nav>
+        <div class="kv">
+          <div class="k">Model</div>
+          <div class="v mono" id="modelVersionText">-</div>
+        </div>
+        <div class="kv">
+          <div class="k">Threshold</div>
+          <div class="v mono" id="thresholdText">-</div>
+        </div>
+        <div class="kv">
+          <div class="k">Expected Features</div>
+          <div class="v mono" id="expectedFeaturesText">-</div>
+        </div>
+      </div>
+    </header>
+
+    <main id="dashboardView" class="layout">
+      <section class="panel control-panel">
+        <div class="panel-header">
+          <h2>Control Panel</h2>
+          <div class="api-config">
+            <label for="apiBaseUrlInput">API Base URL</label>
+            <input id="apiBaseUrlInput" class="mono" type="text" value="http://localhost:8000" spellcheck="false" />
+            <button id="applyApiBtn" class="btn btn-secondary" type="button">Apply</button>
+          </div>
         </div>
 
-        <div class="api-config">
-            <label for="apiUrlInput">API Base URL</label>
-            <input id="apiUrlInput" type="text" value="http://localhost:8000" spellcheck="false" />
-            <button type="button" id="applyApiUrlBtn">Apply</button>
+        <div class="controls-grid">
+          <div class="control">
+            <label>Mode</label>
+            <select id="modeSelect">
+              <option value="real">Real Sample Stream</option>
+              <option value="random">Random Generated Stream</option>
+            </select>
+          </div>
+
+          <div class="control">
+            <label>Speed</label>
+            <select id="speedSelect">
+              <option value="500">0.5s</option>
+              <option value="1000" selected>1s</option>
+              <option value="2000">2s</option>
+            </select>
+          </div>
+
+          <div class="control control-actions">
+            <label>Actions</label>
+            <div class="action-row">
+              <button id="startBtn" class="btn btn-primary" type="button">Start Stream</button>
+              <button id="stopBtn" class="btn btn-danger" type="button" disabled>Stop</button>
+              <button id="resetBtn" class="btn btn-secondary" type="button">Reset</button>
+            </div>
+          </div>
         </div>
-        
-        <div class="form-section">
-            <h2>Transaction Details</h2>
 
-            <div id="creditcardInputs">
-                <div class="input-group">
-                    <div class="form-input">
-                        <label>Time (seconds from start)</label>
-                        <input type="number" id="timeInput" value="0" step="1" min="0">
-                    </div>
-                    <div class="form-input">
-                        <label>Amount ($)</label>
-                        <input type="number" id="amountInput" value="149.62" step="0.01" min="0">
-                    </div>
-                </div>
-                
-                <div class="form-input" style="margin-top: 6px;">
-                    <label>Principal Component Features (V1-V28)</label>
-                    <textarea id="featureInput" class="feature-textarea" placeholder="Enter 28 comma-separated values for V1-V28"></textarea>
-                    <div class="hint">Creditcard mode expects exactly 30 features: <code>[Time, V1..V28, Amount]</code></div>
-                </div>
-            </div>
-
-            <div id="genericInputs" style="display:none;">
-                <div class="form-input">
-                    <label>Feature Vector (comma-separated)</label>
-                    <textarea id="genericFeatureInput" class="feature-textarea" placeholder="Enter numeric features, e.g. 0.1, -1.2, 3.4"></textarea>
-                    <div class="hint">This model expects <strong id="expectedFeatureCount">-</strong> features. Use <code>/features/random</code> for a valid example.</div>
-                </div>
-            </div>
+        <div class="banner banner-muted" id="statusBanner">
+          <div class="banner-title">Status</div>
+          <div class="banner-body mono" id="statusBannerText">Waiting for backend…</div>
         </div>
-        
-        <div class="button-group">
-            <button class="sample-btn" onclick="loadSampleTransaction()">Load Sample</button>
-            <button class="sample-btn" onclick="loadRandomTransactionFromApi()">Random (API)</button>
-            <button class="predict-btn" id="predictBtn" onclick="makePrediction()">Predict</button>
+
+        <div class="banner banner-error" id="errorBanner" style="display: none">
+          <div class="banner-title">Error</div>
+          <div class="banner-body" id="errorBannerText">-</div>
         </div>
-        
-        <div class="error-section" id="errorSection"></div>
-        <div class="loading" id="loadingIndicator"><span class="spinner"></span>Processing...</div>
-        
-        <div class="result-section" id="resultSection">
-            <h3>Prediction Result</h3>
-            <div class="result-item">
-                <span class="result-label">Fraud Status</span>
-                <span class="fraud-badge" id="fraudBadge"></span>
-            </div>
-            <div class="result-item">
-                <span class="result-label">Fraud Probability</span>
-                <div style="flex: 1; margin-left: 20px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                        <span class="result-value" id="probabilityValue">0%</span>
-                    </div>
-                    <div class="probability-bar">
-                        <div class="probability-fill" id="probabilityBar" style="width: 0%"></div>
-                    </div>
-                </div>
-            </div>
-            <div class="result-item">
-                <span class="result-label">Decision Threshold</span>
-                <span class="result-value" id="thresholdValue">0.14</span>
-            </div>
-            <div class="result-item">
-                <span class="result-label">Model Version</span>
-                <span class="result-value" id="modelVersion">-</span>
-            </div>
-            <div class="result-item">
-                <span class="result-label">Request ID</span>
-                <span class="result-value" id="requestId" style="font-family: monospace; font-size: 12px;">-</span>
-            </div>
+      </section>
+
+      <section class="panel kpis">
+        <div class="panel-header">
+          <h2>Live Summary</h2>
+          <div class="panel-meta mono" id="runStateText">stream=stopped</div>
         </div>
-        
-        <!-- Real-Time Streaming Demo Section -->
-        <div class="demo-section" id="streamingSection">
-            <h2>Real-Time Streaming Demo</h2>
 
-            <div class="demo-banner" id="demoStatusBanner">
-                <div>
-                    <strong>Status:</strong> <span id="demoStreamStatus">idle</span>
-                    <span style="margin-left: 10px;"><strong>Mode:</strong> <span id="demoStreamMode">dataset</span></span>
-                    <span style="margin-left: 10px;"><strong>Model:</strong> <span class="mono" id="demoModelVersion">-</span></span>
-                </div>
-                <div class="mono" id="demoExpectText">/predict expects 30 features: [Time, V1..V28, Amount]</div>
-            </div>
-
-            <div class="demo-banner demo-error" id="demoErrorBanner" style="display:none;">
-                <div><strong>Streaming error:</strong> <span id="demoErrorText">-</span></div>
-                <div class="mono">Check API base URL and /health</div>
-            </div>
-            
-            <!-- Stream Controls -->
-            <div class="demo-controls-group">
-                <button class="demo-btn stream" id="startDatasetStreamBtn">Start Dataset Stream</button>
-                <button class="demo-btn random" id="startRandomStreamBtn">Start Random Stream</button>
-                <button class="demo-btn control" id="pauseStreamBtn" disabled>Pause</button>
-                <button class="demo-btn control stop-btn" id="stopStreamBtn" disabled>Stop</button>
-                <button class="demo-btn control" id="resetStreamBtn">Reset</button>
-            </div>
-            
-            <!-- Speed Control -->
-            <div class="demo-speed-control">
-                <label>Speed:</label>
-                <button class="demo-speed-btn speed-active" data-stream-speed="1">1x</button>
-                <button class="demo-speed-btn" data-stream-speed="2">2x</button>
-                <button class="demo-speed-btn" data-stream-speed="5">5x Rapid</button>
-            </div>
-            
-            <!-- Summary Counters -->
-            <div class="demo-counters">
-                <div class="demo-counter">
-                    <div class="demo-counter-label">Total</div>
-                    <div class="demo-counter-value" id="demoTotalCount">0</div>
-                </div>
-                <div class="demo-counter fraud">
-                    <div class="demo-counter-label">Fraud</div>
-                    <div class="demo-counter-value" id="demoFraudCount">0</div>
-                </div>
-                <div class="demo-counter legit">
-                    <div class="demo-counter-label">Legit</div>
-                    <div class="demo-counter-value" id="demoLegitCount">0</div>
-                </div>
-                <div class="demo-counter">
-                    <div class="demo-counter-label">Fraud Rate</div>
-                    <div class="demo-counter-value" id="demoFraudRate">0%</div>
-                </div>
-                <div class="demo-counter">
-                    <div class="demo-counter-label">Avg Latency</div>
-                    <div class="demo-counter-value" id="demoAvgLatency">0 ms</div>
-                </div>
-                <div class="demo-counter">
-                    <div class="demo-counter-label">Avg Prob</div>
-                    <div class="demo-counter-value" id="demoAvgProb">0%</div>
-                </div>
-            </div>
-
-            <div class="demo-grid">
-                <div class="demo-panel">
-                    <h3>Probability Over Time</h3>
-                    <canvas class="demo-chart" id="demoProbChart" width="900" height="220"></canvas>
-                    <div style="margin-top: 8px; font-size: 12px; color: #64748b;">
-                        Latest threshold: <span class="mono" id="demoLastThreshold">-</span> • Latest probability: <span class="mono" id="demoLastProb">-</span>
-                    </div>
-                </div>
-
-                <div class="demo-panel">
-                    <h3>Transaction Feed</h3>
-                    <div class="demo-feed-header">
-                        <div class="demo-col-time">Time</div>
-                        <div class="demo-col-amt">Amount</div>
-                        <div class="demo-col-prob">Prob</div>
-                        <div class="demo-col-label">Label</div>
-                        <div class="demo-col-thr">Thr</div>
-                        <div class="demo-col-req">Req ID</div>
-                    </div>
-                    <div class="demo-feed-container">
-                        <div class="demo-feed" id="demoLiveFeed">
-                            <div class="demo-feed-empty">Stream not started</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+        <div class="kpi-grid">
+          <div class="kpi">
+            <div class="kpi-label">Total Processed</div>
+            <div class="kpi-value mono" id="kpiTotal">0</div>
+          </div>
+          <div class="kpi kpi-red">
+            <div class="kpi-label">Fraud Detected</div>
+            <div class="kpi-value mono" id="kpiFraud">0</div>
+          </div>
+          <div class="kpi kpi-orange">
+            <div class="kpi-label">Suspicious</div>
+            <div class="kpi-value mono" id="kpiSuspicious">0</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">Fraud Rate</div>
+            <div class="kpi-value mono" id="kpiFraudRate">0.00%</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">Avg Probability</div>
+            <div class="kpi-value mono" id="kpiAvgProb">0.00%</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">Last API Latency</div>
+            <div class="kpi-value mono" id="kpiLastLatency">- ms</div>
+          </div>
         </div>
-    </div>
-    
-        <script>
-        (function initAppConfig() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const paramApi = urlParams.get('api');
-            const storedApi = localStorage.getItem('fraud_api_url');
-            const defaultApi = 'http://localhost:8000';
+      </section>
 
-            window.APP_CONFIG = {
-                apiUrl: (paramApi || storedApi || defaultApi).trim()
-            };
+      <section class="panel alerts">
+        <div class="panel-header">
+          <h2>Alert Panel</h2>
+          <div class="panel-meta">Recent high-risk items (Suspicious + Fraud)</div>
+        </div>
+        <div id="alertsList" class="alerts-list">
+          <div class="empty muted" id="alertsEmpty">No alerts yet.</div>
+        </div>
+      </section>
 
-            window.APP_STATE = {
-                expectedFeatures: null,
-                modelVersion: null,
-                uiMode: 'creditcard', // 'creditcard' | 'generic'
-            };
-        })();
+      <section class="panel chart">
+        <div class="panel-header">
+          <h2>Fraud Probability Over Time</h2>
+          <div class="panel-meta mono">
+            last_prob=<span id="chartLastProb">-</span> • last_thr=<span id="chartLastThr">-</span>
+          </div>
+        </div>
+        <canvas id="probChart" width="1100" height="280" class="chart-canvas"></canvas>
+      </section>
 
-        function getApiUrl() {
-            return (window.APP_CONFIG && window.APP_CONFIG.apiUrl)
-                ? window.APP_CONFIG.apiUrl
-                : 'http://localhost:8000';
-        }
+      <section class="panel feed">
+        <div class="panel-header">
+          <h2>Live Transaction Feed</h2>
+          <div class="panel-meta" id="feedMetaText">Append-only log (keeps recent history)</div>
+        </div>
 
-        function applyApiUrlFromInput() {
-            const el = document.getElementById('apiUrlInput');
-            const next = (el && el.value ? el.value : '').trim();
-            if (!next) return;
-            window.APP_CONFIG.apiUrl = next;
-            localStorage.setItem('fraud_api_url', next);
-            checkApiHealth();
-        }
-        
-        // Check API health on load (and keep it updated)
-        window.addEventListener('DOMContentLoaded', () => {
-            document.getElementById('apiUrlInput').value = getApiUrl();
-            document.getElementById('applyApiUrlBtn').addEventListener('click', applyApiUrlFromInput);
-            document.getElementById('apiUrlInput').addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') applyApiUrlFromInput();
-            });
+        <div class="pager" id="feedPager">
+          <div class="pager-left">
+            <span class="muted">Page</span>
+            <button class="btn btn-secondary btn-sm" id="feedPrevBtn" type="button">Prev</button>
+            <span class="mono" id="feedPageText">1 / 1</span>
+            <button class="btn btn-secondary btn-sm" id="feedNextBtn" type="button">Next</button>
+          </div>
+          <div class="pager-right">
+            <label class="muted" for="feedPageSize">Rows</label>
+            <select id="feedPageSize">
+              <option value="25" selected>25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+            <span class="mono muted" id="feedCountText">0 items</span>
+          </div>
+        </div>
 
-            checkApiHealth();
-            setInterval(checkApiHealth, 5000);
-        });
-        
-        async function checkApiHealth() {
-            try {
-                const response = await fetch(`${getApiUrl()}/health`);
-                const data = await response.json();
+        <div class="table-wrap">
+          <table class="table" aria-label="Live transaction feed">
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>Request ID</th>
+                <th class="right">Amount</th>
+                <th class="right">Fraud Prob</th>
+                <th>Risk</th>
+                <th class="center">Label</th>
+                <th class="right">Threshold</th>
+                <th class="right">Latency</th>
+                <th>Status</th>
+                <th>Source</th>
+              </tr>
+            </thead>
+            <tbody id="feedBody">
+              <tr id="feedEmptyRow">
+                <td colspan="10" class="muted center">Stream not started.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
 
-                const modelLoaded = Boolean(data && data.model_loaded);
-                const expectedFeatures = data && typeof data.expected_features === 'number' ? data.expected_features : null;
-                const modelVersion = data && data.model_version ? String(data.model_version) : '-';
+    <main id="reviewView" class="layout" style="display:none;">
+      <section class="panel control-panel">
+        <div class="panel-header">
+          <h2>Check &amp; Handle Queue</h2>
+          <div class="panel-meta">Review Suspicious/Fraud items, add notes, and mark handled (frontend-only).</div>
+        </div>
 
-                window.APP_STATE.expectedFeatures = expectedFeatures;
-                window.APP_STATE.modelVersion = modelVersion;
+        <div class="controls-grid review-controls">
+          <div class="control">
+            <label>Risk Filter</label>
+            <select id="reviewRiskFilter">
+              <option value="all" selected>All (Suspicious + Fraud)</option>
+              <option value="Suspicious">Suspicious</option>
+              <option value="Fraud">Fraud</option>
+            </select>
+          </div>
+          <div class="control">
+            <label>Status Filter</label>
+            <select id="reviewHandledFilter">
+              <option value="unhandled" selected>Unhandled</option>
+              <option value="all">All</option>
+              <option value="handled">Handled</option>
+            </select>
+          </div>
+          <div class="control">
+            <label>Search Request ID</label>
+            <input id="reviewSearchInput" class="mono" type="text" placeholder="e.g. 3c0a…9f2b" spellcheck="false" />
+          </div>
+        </div>
+      </section>
 
-                // Auto-switch UI mode based on model schema.
-                if (typeof expectedFeatures === 'number' && expectedFeatures > 0 && expectedFeatures !== 30) {
-                    setUiMode('generic');
-                } else {
-                    setUiMode('creditcard');
-                }
+      <section class="panel review-grid">
+        <div class="review-left">
+          <div class="panel-header">
+            <h2>Cases</h2>
+            <div class="panel-meta mono" id="reviewCountText">0 cases</div>
+          </div>
 
-                const streamingSection = document.getElementById('streamingSection');
-                const expectText = document.getElementById('demoExpectText');
-                if (expectText) {
-                    expectText.textContent = (expectedFeatures === 30)
-                        ? '/predict expects 30 features: [Time, V1..V28, Amount]'
-                        : `/predict expects ${expectedFeatures ?? '-'} features (streaming demo requires 30).`;
-                }
-                if (streamingSection) {
-                    streamingSection.style.display = (expectedFeatures === 30 || expectedFeatures === null) ? '' : 'none';
-                }
+          <div class="pager" id="reviewPager">
+            <div class="pager-left">
+              <span class="muted">Page</span>
+              <button class="btn btn-secondary btn-sm" id="reviewPrevBtn" type="button">Prev</button>
+              <span class="mono" id="reviewPageText">1 / 1</span>
+              <button class="btn btn-secondary btn-sm" id="reviewNextBtn" type="button">Next</button>
+            </div>
+            <div class="pager-right">
+              <label class="muted" for="reviewPageSize">Rows</label>
+              <select id="reviewPageSize">
+                <option value="10" selected>10</option>
+                <option value="20">20</option>
+                <option value="50">50</option>
+              </select>
+            </div>
+          </div>
 
-                document.getElementById('statusText').textContent =
-                    modelLoaded
-                        ? `API Ready • model_loaded=true • expected_features=${expectedFeatures ?? '-'} • ${modelVersion}`
-                        : `API Ready • model_loaded=false`;
-                document.getElementById('statusIndicator').style.opacity = '1';
+          <div class="table-wrap">
+            <table class="table" aria-label="Case review table">
+              <thead>
+                <tr>
+                  <th>Timestamp</th>
+                  <th>Request ID</th>
+                  <th class="right">Amount</th>
+                  <th class="right">Prob</th>
+                  <th>Risk</th>
+                  <th>Handled</th>
+                </tr>
+              </thead>
+              <tbody id="reviewBody">
+                <tr id="reviewEmptyRow">
+                  <td colspan="6" class="muted center">No cases yet.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
 
-                const demoModelVersion = document.getElementById('demoModelVersion');
-                if (demoModelVersion) demoModelVersion.textContent = modelVersion;
-            } catch (error) {
-                document.getElementById('statusText').textContent = 'API Unreachable';
-                document.getElementById('statusIndicator').style.opacity = '0.5';
-            }
-        }
+        <div class="review-right">
+          <div class="panel-header">
+            <h2>Case Details</h2>
+            <div class="panel-meta">Select a case to inspect</div>
+          </div>
 
-        function setUiMode(mode) {
-            const creditcard = document.getElementById('creditcardInputs');
-            const generic = document.getElementById('genericInputs');
-            const expectedEl = document.getElementById('expectedFeatureCount');
+          <div class="case-card" id="caseCardEmpty">
+            <div class="muted">No case selected.</div>
+          </div>
 
-            window.APP_STATE.uiMode = mode === 'generic' ? 'generic' : 'creditcard';
+          <div class="case-card" id="caseCard" style="display:none;">
+            <div class="case-kv">
+              <div class="k">Request ID</div>
+              <div class="v mono" id="caseRequestId">-</div>
+            </div>
+            <div class="case-kv">
+              <div class="k">Timestamp</div>
+              <div class="v mono" id="caseTimestamp">-</div>
+            </div>
+            <div class="case-kv">
+              <div class="k">Risk</div>
+              <div class="v" id="caseRisk">-</div>
+            </div>
+            <div class="case-kv">
+              <div class="k">Fraud Probability</div>
+              <div class="v mono" id="caseProb">-</div>
+            </div>
+            <div class="case-kv">
+              <div class="k">Threshold</div>
+              <div class="v mono" id="caseThr">-</div>
+            </div>
+            <div class="case-kv">
+              <div class="k">Amount</div>
+              <div class="v mono" id="caseAmount">-</div>
+            </div>
 
-            if (creditcard) creditcard.style.display = window.APP_STATE.uiMode === 'creditcard' ? '' : 'none';
-            if (generic) generic.style.display = window.APP_STATE.uiMode === 'generic' ? '' : 'none';
+            <div class="case-actions">
+              <button class="btn btn-secondary" id="caseCopyPayloadBtn" type="button">Copy /predict Payload</button>
+              <button class="btn btn-secondary" id="caseRescoreBtn" type="button">Re-score (API)</button>
+              <button class="btn btn-primary" id="caseToggleHandledBtn" type="button">Mark Handled</button>
+            </div>
 
-            if (expectedEl) {
-                const n = window.APP_STATE.expectedFeatures;
-                expectedEl.textContent = (typeof n === 'number' && n > 0) ? String(n) : '-';
-            }
-        }
-        
-        function loadSampleTransaction() {
-            if (window.APP_STATE && window.APP_STATE.uiMode === 'generic') return;
-            // Sample legitimate transaction from the dataset
-            document.getElementById('timeInput').value = '0';
-            document.getElementById('amountInput').value = '149.62';
-            // Real sample features (V1-V28)
-            const sampleFeatures = '-1.36,-0.07,2.54,1.38,-0.34,0.46,0.24,0.10,0.36,0.09,-0.55,-0.62,-0.99,-0.31,1.47,-0.47,0.21,0.03,0.40,0.25,-0.02,0.28,-0.11,0.07,0.13,-0.19,0.13,-0.02';
-            document.getElementById('featureInput').value = sampleFeatures;
-        }
+            <div class="case-notes">
+              <label for="caseNoteInput" class="muted">Notes</label>
+              <textarea id="caseNoteInput" placeholder="Add handling notes (stored in browser memory only)"></textarea>
+              <div class="case-note-actions">
+                <button class="btn btn-secondary btn-sm" id="caseSaveNoteBtn" type="button">Save Note</button>
+                <span class="muted mono" id="caseNoteSavedText"></span>
+              </div>
+            </div>
 
-        async function loadRandomTransactionFromApi() {
-            const errorSection = document.getElementById('errorSection');
-            errorSection.classList.remove('show');
+            <details class="case-features">
+              <summary class="muted">Show features (30 floats)</summary>
+              <pre class="mono" id="caseFeatures">-</pre>
+            </details>
+          </div>
+        </div>
+      </section>
+    </main>
 
-            try {
-                const uiMode = window.APP_STATE && window.APP_STATE.uiMode ? window.APP_STATE.uiMode : 'creditcard';
-                const url = uiMode === 'creditcard'
-                    ? `${getApiUrl()}/features/random?mode=creditcard`
-                    : `${getApiUrl()}/features/random`;
+    <footer class="app-footer">
+      <div class="muted">
+        Backend contract used: <span class="mono">GET /health</span>, <span class="mono">POST /predict</span>, <span class="mono">GET /metrics</span>
+      </div>
+      <div class="muted">
+        Tip: open API docs at <span class="mono">/docs</span> and metrics at <span class="mono">/metrics</span>
+      </div>
+    </footer>
 
-                const response = await fetch(url);
-                if (!response.ok) {
-                    let detail = `HTTP ${response.status}`;
-                    try {
-                        const err = await response.json();
-                        if (err && err.detail) detail = String(err.detail);
-                    } catch (e) { /* ignore */ }
-                    showError(`Random feature request failed: ${detail}`);
-                    return;
-                }
-
-                const payload = await response.json();
-                const features = payload && Array.isArray(payload.features) ? payload.features : null;
-                const n = payload && typeof payload.n_features === 'number' ? payload.n_features : null;
-                if (!features || !n || features.length !== n) {
-                    showError('API returned an invalid feature vector.');
-                    return;
-                }
-
-                if (n === 30 && window.APP_STATE.uiMode === 'creditcard') {
-                    const timeValue = Number(features[0]);
-                    const amountValue = Number(features[29]);
-                    const v = features.slice(1, 29).map(v => Number(v));
-
-                    if (!isFinite(timeValue) || !isFinite(amountValue) || v.some(x => !isFinite(x))) {
-                        showError('API returned invalid numeric values for features.');
-                        return;
-                    }
-
-                    document.getElementById('timeInput').value = String(Math.round(timeValue));
-                    document.getElementById('amountInput').value = String(amountValue.toFixed(2));
-                    document.getElementById('featureInput').value = v.map(x => x.toFixed(4)).join(',');
-                } else {
-                    setUiMode('generic');
-                    const genericEl = document.getElementById('genericFeatureInput');
-                    if (genericEl) genericEl.value = features.map(x => Number(x).toFixed(6)).join(',');
-                }
-            } catch (error) {
-                showError(`Error: ${error.message}`);
-            }
-        }
-        
-        async function makePrediction() {
-            const uiMode = window.APP_STATE && window.APP_STATE.uiMode ? window.APP_STATE.uiMode : 'creditcard';
-            if (uiMode === 'generic') {
-                return makePredictionGeneric();
-            }
-
-            const btn = document.getElementById('predictBtn');
-            const loading = document.getElementById('loadingIndicator');
-            const errorSection = document.getElementById('errorSection');
-            const resultSection = document.getElementById('resultSection');
-            
-            // Clear previous results
-            errorSection.classList.remove('show');
-            resultSection.classList.remove('show');
-            
-            // Validate inputs
-            const timeValue = parseFloat(document.getElementById('timeInput').value);
-            const amountValue = parseFloat(document.getElementById('amountInput').value);
-            const featureValues = document.getElementById('featureInput').value.split(',').map(v => parseFloat(v.trim()));
-            
-            if (isNaN(timeValue) || isNaN(amountValue) || featureValues.length !== 28 || featureValues.some(isNaN)) {
-                showError('Please enter valid values: Time, Amount, and 28 feature values (V1-V28)');
-                return;
-            }
-            
-            // Construct feature vector: [Time, V1-V28, Amount]
-            const features = [timeValue, ...featureValues, amountValue];
-            
-            if (features.length !== 30) {
-                showError(`Expected 30 features, got ${features.length}`);
-                return;
-            }
-            
-            btn.disabled = true;
-            loading.classList.add('show');
-            
-            try {
-                const response = await fetch(`${getApiUrl()}/predict`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ features: features })
-                });
-                
-                loading.classList.remove('show');
-                
-                if (!response.ok) {
-                    const error = await response.json();
-                    showError(error.detail || 'Prediction failed');
-                    return;
-                }
-                
-                const result = await response.json();
-                displayResult(result);
-                
-            } catch (error) {
-                loading.classList.remove('show');
-                showError(`Error: ${error.message}`);
-            } finally {
-                btn.disabled = false;
-            }
-        }
-
-        async function makePredictionGeneric() {
-            const btn = document.getElementById('predictBtn');
-            const loading = document.getElementById('loadingIndicator');
-            const errorSection = document.getElementById('errorSection');
-            const resultSection = document.getElementById('resultSection');
-
-            errorSection.classList.remove('show');
-            resultSection.classList.remove('show');
-
-            const expected = window.APP_STATE && typeof window.APP_STATE.expectedFeatures === 'number'
-                ? window.APP_STATE.expectedFeatures
-                : null;
-            if (!expected || expected < 1) {
-                showError('API did not report expected feature count. Check /health.');
-                return;
-            }
-
-            const raw = (document.getElementById('genericFeatureInput').value || '').trim();
-            const parts = raw ? raw.split(',') : [];
-            const values = parts.map(v => parseFloat(v.trim()));
-
-            if (values.length !== expected) {
-                showError(`Expected ${expected} features, got ${values.length}.`);
-                return;
-            }
-            if (values.some(v => !Number.isFinite(v))) {
-                showError('Please enter only valid numeric values (comma-separated).');
-                return;
-            }
-
-            btn.disabled = true;
-            loading.classList.add('show');
-
-            try {
-                const response = await fetch(`${getApiUrl()}/predict`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ features: values })
-                });
-
-                loading.classList.remove('show');
-
-                if (!response.ok) {
-                    const error = await response.json();
-                    showError(error.detail || 'Prediction failed');
-                    return;
-                }
-
-                const result = await response.json();
-                displayResult(result);
-            } catch (error) {
-                loading.classList.remove('show');
-                showError(`Error: ${error.message}`);
-            } finally {
-                btn.disabled = false;
-            }
-        }
-        
-        function showError(message) {
-            const errorSection = document.getElementById('errorSection');
-            errorSection.textContent = message;
-            errorSection.classList.add('show');
-        }
-        
-        function displayResult(result) {
-            const resultSection = document.getElementById('resultSection');
-            const probability = result.fraud_probability;
-            const isFraud = result.fraud_label === 1;
-            const probabilityPercent = (probability * 100).toFixed(2);
-            
-            // Update badge
-            const badge = document.getElementById('fraudBadge');
-            badge.textContent = isFraud ? 'FRAUD' : 'LEGITIMATE';
-            badge.className = `fraud-badge ${isFraud ? 'fraud' : 'legitimate'}`;
-            
-            // Update probability bar and value
-            document.getElementById('probabilityValue').textContent = `${probabilityPercent}%`;
-            document.getElementById('probabilityBar').style.width = Math.min(probability * 100, 100) + '%';
-            
-            // Update other fields
-            document.getElementById('thresholdValue').textContent = result.threshold.toFixed(4);
-            document.getElementById('modelVersion').textContent = result.model_version;
-            document.getElementById('requestId').textContent = result.request_id.substring(0, 20) + '...';
-            
-            resultSection.classList.add('show');
-        }
-        
-        // Load sample on startup
-        window.addEventListener('DOMContentLoaded', loadSampleTransaction);
-    </script>
-    
-    <!-- Streaming Demo Scripts -->
-    <script src="demo-data.js"></script>
-    <script src="streaming-demo.js"></script>
-</body>
+    <script src="./api-client.js"></script>
+    <script src="./demo-data.js"></script>
+    <script src="./ui.js"></script>
+    <script src="./app.js"></script>
+  </body>
 </html>

@@ -1,185 +1,148 @@
-// Demo Data - Transaction Samples and Generators
-// Real transactions sampled from Kaggle Credit Card Fraud Dataset
+/* global window */
 
-// ====================================================================
-// PRE-SAMPLED REAL TRANSACTIONS (1000+ samples from dataset)
-// Format: time, 28 PCA features (V1-V28), amount, label
-// Note: Features shuffled for demo representation
-// ====================================================================
+// Demo data used for MODE 1 — Real Sample Stream.
+//
+// IMPORTANT:
+// - Every entry below is a full feature vector of EXACTLY 30 floats.
+// - Feature order matches backend contract: [Time, V1..V28, Amount]
+//
+// The samples are extracted from the local `data/archive/creditcard.csv` dataset in this repo.
 
-const DEMO_TRANSACTION_SAMPLES = [
-  // Legitimate transactions (Class=0)
-  {
-    amount: 149.62,
-    features: [
-      -1.3598071336738, -0.0727236692380, 2.5363467541420, 1.3786692254814, -0.3383207606370,
-      0.4623778269494, 0.2399751619550, 0.0986979012930, 0.3637870888320, 0.0907941719789,
-      -0.5516989541470, -0.6179024884650, -0.9913295621310, -0.3111047324180, 1.4681770924800,
-      -0.4704005541270, 0.2057573345260, 0.0257905801980, 0.4037325707680, 0.2519386494300,
-      -0.0228804854060, 0.2779373462630, -0.1106441335640, 0.0669280749340, 0.1285394835180,
-      -0.1891148589160, 0.1318687206230, -0.0024488197020
-    ]
-  },
-  {
-    amount: 2.69,
-    features: [
-      -0.8944535571469, -8.1117701783160, 1.6137061613920, -0.3129125954570, -0.0837488387970,
-      0.4623778269494, -0.8747704661930, -0.2289066421750, -0.5516989541470, 0.0448159124810,
-      -0.6379024884650, 0.5702885269380, -0.3711047324180, -0.2929951330370, 0.5681770924800,
-      1.1704005541270, 0.7057573345260, 0.1757905801980, -0.2962674292320, 0.1119386494300,
-      0.2371195145940, -0.2220626537370, 0.0493558664360, 0.0069280749340, 0.1385394835180,
-      -0.0391148589160, -0.0181312793770, -0.0424488197020
-    ]
-  },
-  {
-    amount: 378.66,
-    features: [
-      1.1918571000580, 0.2692869572570, 0.1667038600160, 0.4488821135220, -0.1384865962110,
-      0.0857261701050, -0.0557142026550, -0.0594624160510, -0.4679369541470, 0.3504196143040,
-      -0.4179024884650, 0.0502885269380, -0.3411047324180, -0.4429951330370, 0.9181770924800,
-      0.0804005541270, -0.1642426654740, -0.0142094198020, -0.4762674292320, 0.1019386494300,
-      0.2071195145940, 0.0679373462630, 0.1293558664360, -0.0130719250660, 0.2685394835180,
-      -0.2291148589160, 0.0518687206230, 0.0075511803020
-    ]
-  },
-  {
-    amount: 0.77,
-    features: [
-      -0.9944535571469, -3.6117701783160, -0.3862938386080, 0.1870874045430, -0.0537488387970,
-      0.1223778269494, -0.2247704661930, -0.1289066421750, -0.1016989541470, -0.1451840875190,
-      -0.2379024884650, -0.0197114730620, 0.2388952675820, 0.2070048669630, 0.1881770924800,
-      0.0404005541270, 0.0457573345260, -0.1342094198020, 0.3237325707680, -0.1880613505700,
-      -0.0228804854060, -0.2220626537370, 0.0493558664360, 0.0569280749340, 0.0485394835180,
-      0.0508851410840, 0.1318687206230, -0.0324488197020
-    ]
-  },
-  {
-    amount: 195.00,
-    features: [
-      -1.1598071336738, 0.8772763307620, 1.5363467541420, 0.2786692254814, 0.2616792393630,
-      0.4123778269494, 0.1899751619550, 0.1986979012930, 0.2137870888320, 0.1907941719789,
-      -0.3816989541470, -0.2579024884650, -0.2913295621310, 0.0888952675820, 0.9181770924800,
-      -0.2804005541270, 0.3157573345260, 0.1157905801980, 0.2337325707680, 0.3519386494300,
-      0.1171195145940, 0.1779373462630, 0.0093558664360, 0.0969280749340, 0.0985394835180,
-      -0.0791148589160, 0.0318687206230, 0.0575511803020
-    ]
-  },
-  // Fraud transactions (Class=1) - will add some different feature distributions
-  {
-    amount: 2.69,
-    features: [
-      -0.3944535571469, -8.1117701783160, 1.8137061613920, -0.9129125954570, -0.3137488387970,
-      0.6123778269494, -1.8747704661930, -0.8289066421750, -0.8516989541470, -0.3551840875190,
-      -1.2379024884650, 1.3702885269380, -0.9911047324180, -0.9929951330370, -0.2318229075200,
-      1.3704005541270, 1.8057573345260, 0.2757905801980, -0.8962674292320, 0.3119386494300,
-      0.4371195145940, -0.7220626537370, 0.4493558664360, -0.8930719250660, -0.2314605164820,
-      -0.7391148589160, -0.8781312793770, -0.6424488197020
-    ]
-  },
-  // ... add more samples in production (1000+ total)
-];
+(function () {
+  const INLINE_REAL_SAMPLES = [
+    {"features":[20329.0,1.0984177990865,-0.443084606008526,1.00086919134106,-0.724004624917936,-0.746183108028505,0.484721866872625,-0.933337876099331,0.328263447409737,2.88872694389505,-1.36545269314961,2.60207388670277,-1.08307565642334,1.13582513735214,1.60987520386193,0.379274420987025,-0.848750906112306,0.919340503309758,0.0943746355339732,-0.0829340710114736,-0.221714516686603,-0.0523822025568373,0.338629454558602,0.0184905161590614,-0.332702170046793,0.283946455573,-0.069650803965727,0.178675053839213,0.176601853810823,-0.0590518027393107,2.5]},
+    {"features":[132450.0,-0.881072392877743,0.263099815678994,0.911107885257001,-1.07924545639837,-0.430226422778796,0.292752213696768,0.0767560669656776,0.287035761119171,-0.247731901932745,-0.102264984923216,0.241276112773584,0.58958269339218,-0.431736279315848,0.318439918662831,0.559642610388253,-0.869799576713944,-0.158194819207038,-0.350560072967529,-0.741210592004773,-0.0166625956098434,-0.116570111506823,0.328888242168323,-0.259879445967798,-0.206173902994194,-0.499283083279962,0.0262073645067179,-0.0336222457347718,0.0486310798813236,0.0190174979169015,7.0]},
+    {"features":[63560.0,-0.641539713294617,0.996858068607746,1.61022470241577,0.0173715546387313,0.230031135394604,0.258673616237356,0.334506488023034,0.196087616427984,-0.745025592519774,-0.77857690667534,0.972045320074066,0.437666511603682,-0.451693184232407,0.372831171219398,-0.00772242201711603,0.683900637144793,-0.47986570648746,0.172802410843975,-0.192968293717479,-0.0467898929194778,0.0701020087758415,0.495584505084303,-0.0840227755667738,-0.149727467042802,-0.576124721039922,0.117142463827965,-0.23716866134697,0.0606568739140435,0.0817212315953554,2.99]}
+  ];
 
-// Calculate index for cycling through samples
-let demoDatasetIndex = 0;
+  let _realSamples = null;
+  let _loadPromise = null;
 
-/**
- * Get next real transaction from demo dataset
- * Cycles through all samples repeatedly
- */
-function getNextDatasetTransaction() {
-  const sample = DEMO_TRANSACTION_SAMPLES[demoDatasetIndex % DEMO_TRANSACTION_SAMPLES.length];
-  demoDatasetIndex++;
-  
-  return {
-    amount: sample.amount,
-    features: [
-      Math.random() * (172800), // Time: random within 2 days (0-172800 seconds)
-      ...sample.features,       // 28 PCA features
-      sample.amount             // Amount (already in sample)
-    ]
-  };
-}
+  let realIndex = 0;
+  let randomTimeCursor = 0;
 
-/**
- * Generate realistic random transaction
- * Features sampled from distributions matching training data
- * Real credit card data: amounts log-normal, time uniformly distributed
- */
-function generateRandomTransaction() {
-  // Time: uniform 0-172800 (48 hours)
-  const time = Math.random() * 172800;
-
-  // Mixture strategy for realism:
-  // - 70%: perturb a real (dataset) sample slightly (keeps PCA feature "shape")
-  // - 30%: pure synthetic Normal(0,1) for broader coverage
-  const usePerturbedRealSample = Math.random() < 0.7;
-
-  let vFeatures = [];
-  let amount = 0.0;
-
-  if (usePerturbedRealSample) {
-    const base = DEMO_TRANSACTION_SAMPLES[Math.floor(Math.random() * DEMO_TRANSACTION_SAMPLES.length)];
-    const noiseStd = 0.18;
-
-    vFeatures = base.features.map((v) => {
-      // Small Gaussian noise + rare heavier tail (simulates unusual patterns)
-      const tail = (Math.random() < 0.02) ? (randn() * 2.5) : 0.0;
-      return v + randn() * noiseStd + tail;
-    });
-
-    // Amount: multiplicative noise around a real amount (keeps skewed distribution)
-    amount = base.amount * Math.exp(randn() * 0.35);
-  } else {
-    // Pure synthetic PCA-ish features
-    for (let i = 0; i < 28; i++) {
-      vFeatures.push(randn());
-    }
-
-    // Amount: Log-normal distribution (skewed, many small, few large)
-    amount = logNormal(3.8, 1.1);
+  function reset() {
+    realIndex = 0;
+    randomTimeCursor = 0;
   }
 
-  const sanitizedAmount = Math.max(0.01, amount);
-  return {
-    amount: sanitizedAmount,
-    features: [time, ...vFeatures, sanitizedAmount]
-  };
-}
+  async function ensureRealSamplesLoaded() {
+    if (Array.isArray(_realSamples) && _realSamples.length > 0) return _realSamples;
+    if (_loadPromise) return _loadPromise;
 
-/**
- * Additional helper: Get statistics for random generation tuning
- */
-function getTransactionStatistics() {
-  return {
-    dataset_samples: DEMO_TRANSACTION_SAMPLES.length,
-    default_cycle_count_before_repeat: DEMO_TRANSACTION_SAMPLES.length,
-    feature_distributions: {
-      time: "Uniform(0, 172800) seconds",
-      pca_v1_to_v28: "Normal(0, 1)",
-      amount_distribution: "LogNormal(μ=3.8, σ=1.1)",
-      amount_range_expected: "0.01 to ~200+ USD"
-    },
-    modes: {
-      dataset: "Cycles through real Kaggle samples",
-      random: "Generates realistic synthetic transactions (mixture + perturbations)"
+    _loadPromise = (async () => {
+      try {
+        const resp = await fetch('./real-samples.json', { cache: 'no-store' });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const body = await resp.json();
+        const samples = body && Array.isArray(body.samples) ? body.samples : null;
+        const nFeatures = body && typeof body.n_features === 'number' ? body.n_features : null;
+        if (!samples || nFeatures !== 30) throw new Error('Invalid real-samples.json shape.');
+
+        const cleaned = samples
+          .map(s => ({
+            features: Array.isArray(s.features) ? s.features.map(Number) : null,
+            amount: (typeof s.amount === 'number') ? s.amount : null,
+            time_s: (typeof s.time_s === 'number') ? s.time_s : null,
+          }))
+          .filter(s => Array.isArray(s.features) && s.features.length === 30 && s.features.every(Number.isFinite))
+          .map(s => ({
+            features: s.features,
+            amount: (typeof s.amount === 'number') ? s.amount : s.features[29],
+            time_s: (typeof s.time_s === 'number') ? s.time_s : s.features[0],
+          }));
+
+        _realSamples = cleaned.length ? cleaned : INLINE_REAL_SAMPLES.map(s => ({ features: s.features, amount: s.features[29], time_s: s.features[0] }));
+        return _realSamples;
+      } catch (_) {
+        _realSamples = INLINE_REAL_SAMPLES.map(s => ({ features: s.features, amount: s.features[29], time_s: s.features[0] }));
+        return _realSamples;
+      } finally {
+        if (!Array.isArray(_realSamples) || _realSamples.length === 0) _loadPromise = null;
+      }
+    })();
+
+    return _loadPromise;
+  }
+
+  async function getNextRealTransaction() {
+    const pool = await ensureRealSamplesLoaded();
+    const item = pool[realIndex % pool.length];
+    realIndex += 1;
+    const features = item.features.map(Number);
+    if (features.length !== 30 || features.some(v => !Number.isFinite(v))) {
+      throw new Error('Real sample is malformed (expected 30 finite numbers).');
     }
+    return {
+      source: 'real',
+      features,
+      time_s: (typeof item.time_s === 'number') ? item.time_s : features[0],
+      amount: (typeof item.amount === 'number') ? item.amount : features[29],
+    };
+  }
+
+  // ------------------------------------------------------------------
+  // MODE 2 — Random Generated Stream
+  // ------------------------------------------------------------------
+  //
+  // Goal: realistic-enough traffic (not pure meaningless noise) while still being
+  // valid for the backend contract.
+  //
+  // Strategy:
+  // - Time: monotonic-ish cursor + jitter
+  // - V1..V28: mostly N(0,1) with occasional heavier-tail events
+  // - Amount: log-normal-ish, occasionally large values; sometimes inject stress/anomaly
+
+  function randn() {
+    let u1 = 0;
+    let u2 = 0;
+    while (u1 === 0) u1 = Math.random();
+    while (u2 === 0) u2 = Math.random();
+    return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+  }
+
+  function logNormal(mu, sigma) {
+    return Math.exp(mu + sigma * randn());
+  }
+
+  function generateRandomTransaction() {
+    // time cursor: start around 0..10k, then increment 0.2..2.5 seconds per tick
+    if (randomTimeCursor <= 0) randomTimeCursor = Math.random() * 10000;
+    randomTimeCursor += 0.2 + Math.random() * 2.3;
+    const time = randomTimeCursor + (Math.random() - 0.5) * 0.25;
+
+    const stress = Math.random() < 0.06; // ~6% more dramatic samples (demo-friendly)
+    const tailEvent = Math.random() < 0.03;
+
+    const v = [];
+    for (let i = 0; i < 28; i++) {
+      let x = randn();
+      if (tailEvent) x += randn() * 2.2;
+      if (stress) x += randn() * 1.2;
+      v.push(x);
+    }
+
+    // Amount: mostly small/moderate, occasionally large; stress pushes higher.
+    let amount = logNormal(3.4, 0.85); // typical ~$30-ish median with a long tail
+    if (Math.random() < 0.05) amount *= 8; // occasional high-value
+    if (stress) amount *= 12;
+    amount = Math.max(0.01, Math.min(amount, 5000));
+
+    // Inject a high-value anomaly with slightly amplified feature magnitudes.
+    if (stress && Math.random() < 0.35) {
+      amount = Math.max(amount, 750 + Math.random() * 2250);
+      for (let i = 0; i < v.length; i++) v[i] *= 1.35 + Math.random() * 0.5;
+    }
+
+    const features = [time, ...v, amount];
+    return { source: 'random', features, time_s: time, amount };
+  }
+
+  window.DemoData = {
+    reset,
+    ensureRealSamplesLoaded,
+    getNextRealTransaction,
+    generateRandomTransaction,
+    realSampleCount: null,
   };
-}
-
-// --------------------------------------------------------------------
-// Random helpers (no external dependencies)
-// --------------------------------------------------------------------
-
-function randn() {
-  // Box-Muller transform for standard normal distribution
-  let u1 = 0;
-  let u2 = 0;
-  // Avoid log(0)
-  while (u1 === 0) u1 = Math.random();
-  while (u2 === 0) u2 = Math.random();
-  return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
-}
-
-function logNormal(mu, sigma) {
-  return Math.exp(mu + sigma * randn());
-}
+})();

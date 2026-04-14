@@ -1,11 +1,14 @@
 import asyncio
+from pathlib import Path
 
 from src.api.main import app
 from tests.integration.asgi_client import LifespanManager, asgi_post_json
 
 
 def test_predict_returns_503_when_model_missing(monkeypatch) -> None:
-    monkeypatch.delenv("MODEL_PATH", raising=False)
+    # Explicitly set an invalid MODEL_PATH. When MODEL_PATH is set, the loader does not
+    # fall back to any local default artifact.
+    monkeypatch.setenv("MODEL_PATH", str(Path("artifacts/models/does_not_exist.joblib")))
     monkeypatch.delenv("FRAUD_THRESHOLD", raising=False)
     monkeypatch.delenv("MODEL_VERSION", raising=False)
 

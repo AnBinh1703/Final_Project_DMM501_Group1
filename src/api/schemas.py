@@ -67,3 +67,31 @@ class DatasetSamplesWithLabelResponse(BaseModel):
     feature_names: list[str] = Field(..., min_length=1)
     dataset_path: str | None = None
     samples: list[DatasetSampleWithLabel] = Field(..., min_length=1)
+
+
+class StreamScoredEvent(BaseModel):
+    event_id: str
+    event_time_utc: str
+    source: str = Field(..., description="Event source (e.g., dataset or synthetic).")
+    features: list[float] = Field(..., min_length=1, description="Ordered feature vector (for re-score).")
+    time_s: float | None = Field(None, ge=0.0)
+    amount: float | None = Field(None, ge=0.0)
+
+    risk_score: float = Field(..., ge=0.0, le=1.0, description="Uncalibrated risk score in [0,1].")
+    risk_percentile: float | None = Field(
+        None,
+        ge=0.0,
+        le=100.0,
+        description="Optional percentile rank of risk_score under a reference score distribution.",
+    )
+    risk_tier: str = Field(..., description="Decision tier derived from thresholds: LOW, REVIEW, HIGH.")
+    action: str = Field(..., description="Suggested action: allow, review, block.")
+
+
+class StreamPullResponse(BaseModel):
+    model_version: str
+    model_type: str | None = None
+    score_semantics: str = Field(..., description="Describes how to interpret risk_score (e.g., uncalibrated).")
+    threshold_review: float = Field(..., ge=0.0, le=1.0)
+    threshold_high: float = Field(..., ge=0.0, le=1.0)
+    events: list[StreamScoredEvent] = Field(..., min_length=1)

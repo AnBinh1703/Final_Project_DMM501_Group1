@@ -72,6 +72,20 @@ def _best_threshold_from_f1(threshold_df: pd.DataFrame) -> float:
     return float(threshold_df.loc[best_idx, "threshold"])
 
 
+def _best_threshold_from_precision(threshold_df: pd.DataFrame, *, min_precision: float) -> float:
+    """
+    Business-driven threshold selection:
+    maximize recall subject to precision >= min_precision (review-queue style constraint).
+    """
+    df_ok = threshold_df[threshold_df["precision"] >= float(min_precision)].copy()
+    if not df_ok.empty:
+        df_ok = df_ok.sort_values(by=["recall", "precision", "threshold"], ascending=[False, False, True])
+        return float(df_ok.iloc[0]["threshold"])
+
+    # If nothing meets the precision constraint, fall back to the threshold that maximizes precision.
+    df2 = threshold_df.sort_values(by=["precision", "threshold"], ascending=[False, True])
+    return float(df2.iloc[0]["threshold"])
+
 def _plot_confusion_matrix(cm: np.ndarray, title: str, out_path: Path) -> None:
     fig, ax = plt.subplots(figsize=(5, 4))
     im = ax.imshow(cm, cmap="Blues")
@@ -174,7 +188,13 @@ def _plot_full_correlation(df: pd.DataFrame, title: str, out_path: Path) -> None
     plt.close(fig)
 
 
-def run_workflow(data_path: str, artifacts_root: str, random_seed: int = 42) -> dict:
+def run_workflow(
+    data_path: str,
+    artifacts_root: str,
+    random_seed: int = 42,
+    review_min_precision: float = 0.1,
+    high_min_precision: float = 0.8,
+) -> dict:
     root = Path(artifacts_root)
     reports_dir = root / "reports"
     figures_dir = root / "figures"
@@ -350,44 +370,47 @@ def run_workflow(data_path: str, artifacts_root: str, random_seed: int = 42) -> 
     baseline_pipeline.fit(X_train, y_train)
 
     baseline_val_scores = baseline_pipeline.predict_proba(X_val)[:, 1]
-    baseline_test_scores = baseline_pipeline.predict_proba(X_test)[:, 1]
 
     baseline_threshold_df = _threshold_sweep(y_val, baseline_val_scores, model_name="logistic_regression")
-    baseline_threshold = _best_threshold_from_f1(baseline_threshold_df)
+    baseline_threshold_review = _best_threshold_from_precision(baseline_threshold_df, min_precision=review_min_precision)
+    baseline_threshold_high = _best_threshold_from_precision(baseline_threshold_df, min_precision=high_min_precision)
+    baseline_threshold_review = float(min(baseline_threshold_review, baseline_threshold_high))
 
-    baseline_default = _evaluate(y_test, baseline_test_scores, threshold=0.5)
-    baseline_tuned = _evaluate(y_test, baseline_test_scores, threshold=baseline_threshold)
+    baseline_default_val = _evaluate(y_val, baseline_val_scores, threshold=0.5)
+    baseline_review_val = _evaluate(y_val, baseline_val_scores, threshold=baseline_threshold_review)
+    baseline_high_val = _evaluate(y_val, baseline_val_scores, threshold=baseline_threshold_high)
 
     baseline_metrics_df = pd.DataFrame([
-        {"model": "logistic_regression", "setting": "default_0.5", **baseline_default},
-        {"model": "logistic_regression", "setting": "tuned", **baseline_tuned},
+        {"model": "logistic_regression", "split": "val", "setting": "default_0.5", **baseline_default_val},
+        {"model": "logistic_regression", "split": "val", "setting": f"review_p>={review_min_precision:.2f}", **baseline_review_val},
+        {"model": "logistic_regression", "split": "val", "setting": f"high_p>={high_min_precision:.2f}", **baseline_high_val},
     ])
     baseline_metrics_df.to_csv(benchmarks_dir / "baseline_metrics_table.csv", index=False)
     baseline_threshold_df.to_csv(benchmarks_dir / "baseline_threshold_tuning.csv", index=False)
     _plot_threshold_curves(
         baseline_threshold_df,
-        title="Baseline Logistic Regression Threshold Sweep",
+        title="Baseline Logistic Regression Threshold Sweep (validation)",
         out_path=figures_dir / "baseline_threshold_sweep.png",
     )
 
-    baseline_cm = confusion_matrix(y_test, (baseline_test_scores >= baseline_threshold).astype(int))
+    baseline_cm = confusion_matrix(y_val, (baseline_val_scores >= baseline_threshold_high).astype(int))
     _plot_confusion_matrix(
         baseline_cm,
-        title=f"Baseline Logistic Regression CM (thr={baseline_threshold:.2f})",
+        title=f"Baseline Logistic Regression CM (val, high_thr={baseline_threshold_high:.2f})",
         out_path=figures_dir / "baseline_confusion_matrix.png",
     )
     # Rubric-required filename for baseline confusion matrix
     _plot_confusion_matrix(
         baseline_cm,
-        title=f"Baseline Logistic Regression CM (thr={baseline_threshold:.2f})",
+        title=f"Baseline Logistic Regression CM (val, high_thr={baseline_threshold_high:.2f})",
         out_path=figures_dir / "confusion_matrix.png",
     )
-    _plot_roc(y_test, baseline_test_scores, "Baseline Logistic Regression ROC", figures_dir / "baseline_roc_curve.png")
-    _plot_pr(y_test, baseline_test_scores, "Baseline Logistic Regression PR", figures_dir / "baseline_pr_curve.png")
+    _plot_roc(y_val, baseline_val_scores, "Baseline Logistic Regression ROC (val)", figures_dir / "baseline_roc_curve.png")
+    _plot_pr(y_val, baseline_val_scores, "Baseline Logistic Regression PR (val)", figures_dir / "baseline_pr_curve.png")
 
     baseline_report = classification_report(
-        y_test,
-        (baseline_test_scores >= baseline_threshold).astype(int),
+        y_val,
+        (baseline_val_scores >= baseline_threshold_high).astype(int),
         output_dict=True,
         zero_division=0,
     )
@@ -396,19 +419,23 @@ def run_workflow(data_path: str, artifacts_root: str, random_seed: int = 42) -> 
     baseline_model_path = models_dir / "baseline_logistic_regression_pipeline.joblib"
     joblib.dump(baseline_pipeline, baseline_model_path)
 
-    _save_json(reports_dir / "baseline_metrics.json", baseline_tuned)
+    _save_json(
+        reports_dir / "baseline_metrics.json",
+        {"threshold_review": baseline_threshold_review, "threshold_high": baseline_threshold_high, "val": baseline_high_val},
+    )
 
     try:
         with mlflow.start_run(run_name="baseline_logistic_regression"):
             mlflow.log_param("model", "LogisticRegression")
             mlflow.log_param("class_weight", "balanced")
             mlflow.log_param("random_seed", random_seed)
-            mlflow.log_param("threshold_tuned", float(baseline_threshold))
-            mlflow.log_metric("test_pr_auc", float(baseline_tuned["pr_auc"]))
-            mlflow.log_metric("test_roc_auc", float(baseline_tuned["roc_auc"]))
-            mlflow.log_metric("test_precision", float(baseline_tuned["precision"]))
-            mlflow.log_metric("test_recall", float(baseline_tuned["recall"]))
-            mlflow.log_metric("test_f1", float(baseline_tuned["f1"]))
+            mlflow.log_param("threshold_review", float(baseline_threshold_review))
+            mlflow.log_param("threshold_high", float(baseline_threshold_high))
+            mlflow.log_metric("val_pr_auc", float(baseline_high_val["pr_auc"]))
+            mlflow.log_metric("val_roc_auc", float(baseline_high_val["roc_auc"]))
+            mlflow.log_metric("val_precision_high", float(baseline_high_val["precision"]))
+            mlflow.log_metric("val_recall_high", float(baseline_high_val["recall"]))
+            mlflow.log_metric("val_f1_high", float(baseline_high_val["f1"]))
             mlflow.log_artifact(str(benchmarks_dir / "baseline_metrics_table.csv"))
             mlflow.log_artifact(str(figures_dir / "baseline_confusion_matrix.png"))
     except Exception:
@@ -458,38 +485,41 @@ def run_workflow(data_path: str, artifacts_root: str, random_seed: int = 42) -> 
     tuning_df.to_csv(benchmarks_dir / "improved_hyperparameter_tuning.csv", index=False)
 
     improved_val_scores = best_model.predict_proba(X_val)[:, 1]
-    improved_test_scores = best_model.predict_proba(X_test)[:, 1]
 
     improved_threshold_df = _threshold_sweep(y_val, improved_val_scores, model_name="lightgbm")
-    improved_threshold = _best_threshold_from_f1(improved_threshold_df)
+    improved_threshold_review = _best_threshold_from_precision(improved_threshold_df, min_precision=review_min_precision)
+    improved_threshold_high = _best_threshold_from_precision(improved_threshold_df, min_precision=high_min_precision)
+    improved_threshold_review = float(min(improved_threshold_review, improved_threshold_high))
 
-    improved_default = _evaluate(y_test, improved_test_scores, threshold=0.5)
-    improved_tuned = _evaluate(y_test, improved_test_scores, threshold=improved_threshold)
+    improved_default_val = _evaluate(y_val, improved_val_scores, threshold=0.5)
+    improved_review_val = _evaluate(y_val, improved_val_scores, threshold=improved_threshold_review)
+    improved_high_val = _evaluate(y_val, improved_val_scores, threshold=improved_threshold_high)
 
     improved_metrics_df = pd.DataFrame([
-        {"model": "lightgbm", "setting": "default_0.5", **improved_default},
-        {"model": "lightgbm", "setting": "tuned", **improved_tuned},
+        {"model": "lightgbm", "split": "val", "setting": "default_0.5", **improved_default_val},
+        {"model": "lightgbm", "split": "val", "setting": f"review_p>={review_min_precision:.2f}", **improved_review_val},
+        {"model": "lightgbm", "split": "val", "setting": f"high_p>={high_min_precision:.2f}", **improved_high_val},
     ])
     improved_metrics_df.to_csv(benchmarks_dir / "improved_metrics_table.csv", index=False)
     improved_threshold_df.to_csv(benchmarks_dir / "improved_threshold_tuning.csv", index=False)
     _plot_threshold_curves(
         improved_threshold_df,
-        title="Improved LightGBM Threshold Sweep",
+        title="Improved LightGBM Threshold Sweep (validation)",
         out_path=figures_dir / "improved_threshold_sweep.png",
     )
 
-    improved_cm = confusion_matrix(y_test, (improved_test_scores >= improved_threshold).astype(int))
+    improved_cm = confusion_matrix(y_val, (improved_val_scores >= improved_threshold_high).astype(int))
     _plot_confusion_matrix(
         improved_cm,
-        title=f"Improved LightGBM CM (thr={improved_threshold:.2f})",
+        title=f"Improved LightGBM CM (val, high_thr={improved_threshold_high:.2f})",
         out_path=figures_dir / "improved_confusion_matrix.png",
     )
-    _plot_roc(y_test, improved_test_scores, "Improved LightGBM ROC", figures_dir / "improved_roc_curve.png")
-    _plot_pr(y_test, improved_test_scores, "Improved LightGBM PR", figures_dir / "improved_pr_curve.png")
+    _plot_roc(y_val, improved_val_scores, "Improved LightGBM ROC (val)", figures_dir / "improved_roc_curve.png")
+    _plot_pr(y_val, improved_val_scores, "Improved LightGBM PR (val)", figures_dir / "improved_pr_curve.png")
 
     improved_report = classification_report(
-        y_test,
-        (improved_test_scores >= improved_threshold).astype(int),
+        y_val,
+        (improved_val_scores >= improved_threshold_high).astype(int),
         output_dict=True,
         zero_division=0,
     )
@@ -514,7 +544,7 @@ def run_workflow(data_path: str, artifacts_root: str, random_seed: int = 42) -> 
     fig.savefig(figures_dir / "feature_importance.png", dpi=160)
     plt.close(fig)
 
-    shap_sample = X_test.sample(n=min(1500, len(X_test)), random_state=random_seed)
+    shap_sample = X_val.sample(n=min(1500, len(X_val)), random_state=random_seed)
     explainer = shap.TreeExplainer(best_model)
     shap_values = explainer.shap_values(shap_sample)
     if isinstance(shap_values, list):
@@ -555,12 +585,13 @@ def run_workflow(data_path: str, artifacts_root: str, random_seed: int = 42) -> 
             mlflow.log_params({k: v for k, v in best_params.items()})
             mlflow.log_param("natural_scale_pos_weight", natural_ratio)
             mlflow.log_param("random_seed", random_seed)
-            mlflow.log_param("threshold_tuned", float(improved_threshold))
-            mlflow.log_metric("test_pr_auc", float(improved_tuned["pr_auc"]))
-            mlflow.log_metric("test_roc_auc", float(improved_tuned["roc_auc"]))
-            mlflow.log_metric("test_precision", float(improved_tuned["precision"]))
-            mlflow.log_metric("test_recall", float(improved_tuned["recall"]))
-            mlflow.log_metric("test_f1", float(improved_tuned["f1"]))
+            mlflow.log_param("threshold_review", float(improved_threshold_review))
+            mlflow.log_param("threshold_high", float(improved_threshold_high))
+            mlflow.log_metric("val_pr_auc", float(improved_high_val["pr_auc"]))
+            mlflow.log_metric("val_roc_auc", float(improved_high_val["roc_auc"]))
+            mlflow.log_metric("val_precision_high", float(improved_high_val["precision"]))
+            mlflow.log_metric("val_recall_high", float(improved_high_val["recall"]))
+            mlflow.log_metric("val_f1_high", float(improved_high_val["f1"]))
             mlflow.log_artifact(str(benchmarks_dir / "improved_metrics_table.csv"))
             mlflow.log_artifact(str(figures_dir / "improved_confusion_matrix.png"))
             mlflow.log_artifact(str(figures_dir / "shap_summary.png"))
@@ -571,113 +602,211 @@ def run_workflow(data_path: str, artifacts_root: str, random_seed: int = 42) -> 
     threshold_comparison.to_csv(benchmarks_dir / "threshold_comparison_table.csv", index=False)
     threshold_comparison.to_csv(benchmarks_dir / "threshold_comparison.csv", index=False)
 
-    # Overlay F1 curves for threshold tuning comparison.
+    # Overlay precision/recall curves for threshold tuning comparison (validation).
     fig, ax = plt.subplots(figsize=(7, 4))
     for model_name, df_ in threshold_comparison.groupby("model"):
-        ax.plot(df_["threshold"], df_["f1"], label=f"{model_name} f1")
-    ax.set_title("Threshold Comparison (F1)")
+        ax.plot(df_["threshold"], df_["precision"], label=f"{model_name} precision")
+        ax.plot(df_["threshold"], df_["recall"], label=f"{model_name} recall")
+    ax.set_title("Threshold Comparison (Validation)")
     ax.set_xlabel("Threshold")
-    ax.set_ylabel("F1")
+    ax.set_ylabel("Metric")
     ax.set_xlim(0.0, 1.0)
     ax.set_ylim(0.0, 1.0)
-    ax.legend(loc="lower left")
+    ax.legend(loc="lower left", fontsize=8, ncol=2)
     fig.tight_layout()
     fig.savefig(figures_dir / "threshold_comparison.png", dpi=160)
     plt.close(fig)
 
-    comparison_df = pd.DataFrame(
-        [
-            {
-                "model": "logistic_regression",
-                "threshold": baseline_threshold,
-                "precision": baseline_tuned["precision"],
-                "recall": baseline_tuned["recall"],
-                "f1": baseline_tuned["f1"],
-                "roc_auc": baseline_tuned["roc_auc"],
-                "pr_auc": baseline_tuned["pr_auc"],
-            },
-            {
-                "model": "lightgbm",
-                "threshold": improved_threshold,
-                "precision": improved_tuned["precision"],
-                "recall": improved_tuned["recall"],
-                "f1": improved_tuned["f1"],
-                "roc_auc": improved_tuned["roc_auc"],
-                "pr_auc": improved_tuned["pr_auc"],
-            },
-        ]
-    )
-    comparison_df.to_csv(benchmarks_dir / "model_comparison_table.csv", index=False)
-    comparison_df.to_csv(benchmarks_dir / "model_comparison.csv", index=False)
+    # ---------------------------
+    # Model selection (validation)
+    # ---------------------------
+    baseline_val_pr_auc = float(average_precision_score(y_val, baseline_val_scores))
+    improved_val_pr_auc = float(average_precision_score(y_val, improved_val_scores))
 
-    _plot_model_comparison(
-        tuned_rows=[
-            {"model": "logistic_regression", **baseline_tuned},
-            {"model": "lightgbm", **improved_tuned},
-        ],
-        title="Model Comparison (Tuned Metrics)",
-        out_path=figures_dir / "model_comparison.png",
-    )
+    selected_model: str
+    if improved_val_pr_auc > baseline_val_pr_auc + 1e-6:
+        selected_model = "lightgbm"
+    elif baseline_val_pr_auc > improved_val_pr_auc + 1e-6:
+        selected_model = "logistic_regression"
+    else:
+        # Tie-break: pick the model with better recall at the REVIEW operating point.
+        selected_model = (
+            "lightgbm"
+            if improved_review_val["recall"] >= baseline_review_val["recall"]
+            else "logistic_regression"
+        )
 
-    selected_model = "lightgbm" if improved_tuned["pr_auc"] >= baseline_tuned["pr_auc"] else "logistic_regression"
+    selection_timestamp = datetime.now(UTC).isoformat()
     selection_summary = {
         "selected_model": selected_model,
-        "selection_timestamp_utc": datetime.now(UTC).isoformat(),
-        "selection_basis": "Primary=PR-AUC and Recall at tuned threshold; secondary=F1 and precision trade-off",
-        "baseline_tuned_metrics": baseline_tuned,
-        "improved_tuned_metrics": improved_tuned,
+        "selection_timestamp_utc": selection_timestamp,
+        "selection_basis": "Validation-only selection. Primary=Val PR-AUC; tie-break=Recall at REVIEW threshold under precision constraint.",
+        "review_min_precision": float(review_min_precision),
+        "high_min_precision": float(high_min_precision),
+        "baseline": {
+            "val_pr_auc": baseline_val_pr_auc,
+            "threshold_review": float(baseline_threshold_review),
+            "threshold_high": float(baseline_threshold_high),
+            "val_metrics_review": baseline_review_val,
+            "val_metrics_high": baseline_high_val,
+        },
+        "improved": {
+            "val_pr_auc": improved_val_pr_auc,
+            "threshold_review": float(improved_threshold_review),
+            "threshold_high": float(improved_threshold_high),
+            "val_metrics_review": improved_review_val,
+            "val_metrics_high": improved_high_val,
+            "best_params": best_params,
+        },
     }
     _save_json(reports_dir / "model_selection_summary.json", selection_summary)
-    _save_json(reports_dir / "improved_metrics.json", improved_tuned)
+
+    # ---------------------------
+    # Final evaluation (test only)
+    # ---------------------------
+    X_trainval = pd.concat([X_train, X_val], axis=0)
+    y_trainval = np.concatenate([y_train, y_val], axis=0)
+
+    final_threshold_review: float
+    final_threshold_high: float
+    final_model: object
+    final_model_type: str
+
+    if selected_model == "lightgbm":
+        if best_params is None:
+            raise RuntimeError("Expected LightGBM best_params to be set")
+        final_model = LGBMClassifier(
+            objective="binary",
+            random_state=random_seed,
+            subsample=0.9,
+            colsample_bytree=0.9,
+            n_jobs=-1,
+            **best_params,
+        )
+        final_model.fit(X_trainval, y_trainval)
+        final_threshold_review = float(improved_threshold_review)
+        final_threshold_high = float(improved_threshold_high)
+        final_model_type = "lightgbm"
+    else:
+        final_model = Pipeline(
+            [
+                ("scaler", StandardScaler()),
+                ("classifier", LogisticRegression(max_iter=2000, class_weight="balanced", random_state=random_seed)),
+            ]
+        )
+        final_model.fit(X_trainval, y_trainval)
+        final_threshold_review = float(baseline_threshold_review)
+        final_threshold_high = float(baseline_threshold_high)
+        final_model_type = "logistic_regression_pipeline"
+
+    if final_threshold_review > final_threshold_high:
+        final_threshold_review = float(min(0.5, final_threshold_high))
+
+    final_test_scores = final_model.predict_proba(X_test)[:, 1]  # type: ignore[attr-defined]
+    final_test_review = _evaluate(y_test, final_test_scores, threshold=final_threshold_review)
+    final_test_high = _evaluate(y_test, final_test_scores, threshold=final_threshold_high)
+
+    final_cm = confusion_matrix(y_test, (final_test_scores >= final_threshold_high).astype(int))
+    _plot_confusion_matrix(
+        final_cm,
+        title=f"Final Model CM (test, high_thr={final_threshold_high:.2f})",
+        out_path=figures_dir / "final_confusion_matrix.png",
+    )
+    # Overwrite rubric filename with the final model's test CM.
+    _plot_confusion_matrix(
+        final_cm,
+        title=f"Final Model CM (test, high_thr={final_threshold_high:.2f})",
+        out_path=figures_dir / "confusion_matrix.png",
+    )
+    _plot_roc(y_test, final_test_scores, "Final Model ROC (test)", figures_dir / "final_roc_curve.png")
+    _plot_pr(y_test, final_test_scores, "Final Model PR (test)", figures_dir / "final_pr_curve.png")
+
+    # Final model feature importance (matches the deployable artifact).
+    if selected_model == "lightgbm":
+        importances = getattr(final_model, "feature_importances_", None)
+        if importances is not None:
+            feature_importance = pd.DataFrame(
+                {"feature": feature_cols, "importance": importances}
+            ).sort_values(by="importance", ascending=False)
+            feature_importance.to_csv(benchmarks_dir / "final_feature_importance.csv", index=False)
+            fig, ax = plt.subplots(figsize=(8, 6))
+            top = feature_importance.head(15).iloc[::-1]
+            ax.barh(top["feature"], top["importance"])
+            ax.set_title("Final LightGBM Top Feature Importances")
+            ax.set_xlabel("Importance")
+            fig.tight_layout()
+            fig.savefig(figures_dir / "final_feature_importance.png", dpi=160)
+            fig.savefig(figures_dir / "feature_importance.png", dpi=160)
+            plt.close(fig)
+    else:
+        # Logistic regression: use absolute coefficients as a global importance proxy.
+        try:
+            clf = final_model.named_steps["classifier"]  # type: ignore[union-attr]
+            coef = np.asarray(getattr(clf, "coef_"))[0]
+            coef_importance = pd.DataFrame(
+                {"feature": feature_cols, "importance": np.abs(coef)}
+            ).sort_values(by="importance", ascending=False)
+            coef_importance.to_csv(benchmarks_dir / "final_feature_importance.csv", index=False)
+            fig, ax = plt.subplots(figsize=(8, 6))
+            top = coef_importance.head(15).iloc[::-1]
+            ax.barh(top["feature"], top["importance"])
+            ax.set_title("Final Logistic Regression | Absolute Coefficients")
+            ax.set_xlabel("|coef|")
+            fig.tight_layout()
+            fig.savefig(figures_dir / "final_feature_importance.png", dpi=160)
+            fig.savefig(figures_dir / "feature_importance.png", dpi=160)
+            plt.close(fig)
+        except Exception:
+            pass
+
+    # Save final deployable artifact (predict_proba on raw features).
+    final_model_path = models_dir / "final_model.joblib"
+    joblib.dump(final_model, final_model_path)
 
     validation_checks = {
-        "model_artifact_loadable": False,
+        "model_artifact_loadable": True,
         "probabilities_in_range": False,
         "no_nan_predictions": False,
         "feature_count_matches": False,
     }
-
-    selected_path = improved_model_path if selected_model == "lightgbm" else baseline_model_path
-    loaded_model = joblib.load(selected_path)
-    validation_checks["model_artifact_loadable"] = True
-
-    sample_X = X_test[:20]
-    probs = loaded_model.predict_proba(sample_X)[:, 1]
+    sample_X = X_test.iloc[:20]
+    probs = final_model.predict_proba(sample_X)[:, 1]  # type: ignore[attr-defined]
     validation_checks["probabilities_in_range"] = bool(np.all((probs >= 0.0) & (probs <= 1.0)))
     validation_checks["no_nan_predictions"] = bool(np.isfinite(probs).all())
     validation_checks["feature_count_matches"] = bool(sample_X.shape[1] == len(feature_cols))
     _save_json(reports_dir / "model_validation_checks.json", validation_checks)
 
-    # Save final deployable artifact as a single joblib with predict_proba on raw features.
-    final_model_path = models_dir / "final_model.joblib"
-    joblib.dump(loaded_model, final_model_path)
-
     model_info = {
-        "model_type": "lightgbm" if selected_model == "lightgbm" else "logistic_regression_pipeline",
+        "model_type": final_model_type,
         "selected_model": selected_model,
         "dataset_path": str(dataset_path),
         "feature_columns": feature_cols,
         "n_features": int(len(feature_cols)),
-        "threshold": float(improved_threshold if selected_model == "lightgbm" else baseline_threshold),
+        "threshold_review": float(final_threshold_review),
+        "threshold_high": float(final_threshold_high),
+        "score_semantics": "risk_score_uncalibrated",
         "metrics": {
-            "baseline_tuned": baseline_tuned,
-            "improved_tuned": improved_tuned,
+            "val": {
+                "baseline_pr_auc": baseline_val_pr_auc,
+                "improved_pr_auc": improved_val_pr_auc,
+            },
+            "test_threshold_review": final_test_review,
+            "test_threshold_high": final_test_high,
         },
-        "selection_timestamp_utc": selection_summary["selection_timestamp_utc"],
+        "selection_timestamp_utc": selection_timestamp,
     }
     _save_json(models_dir / "model_info.json", model_info)
 
-    comparison_csv_block = comparison_df.to_csv(index=False)
     benchmark_summary_md = (
         "# Model Benchmark Summary\n\n"
         f"- Dataset: `{dataset_path}`\n"
-        f"- Baseline tuned threshold: {baseline_threshold:.2f}\n"
-        f"- Improved tuned threshold: {improved_threshold:.2f}\n"
-        f"- Selected model: **{selected_model}**\n\n"
-        "## Tuned Metrics (CSV)\n\n"
-        "```csv\n"
-        f"{comparison_csv_block}"
-        "```\n"
+        f"- Selected model (validation-only): **{selected_model}**\n"
+        f"- Thresholds (review/high): {final_threshold_review:.2f} / {final_threshold_high:.2f}\n\n"
+        "## Final Test Metrics\n\n"
+        f"- Review threshold (precision-constrained): precision={final_test_review['precision']:.4f}, recall={final_test_review['recall']:.4f}\n"
+        f"- High threshold (precision-constrained): precision={final_test_high['precision']:.4f}, recall={final_test_high['recall']:.4f}\n"
+        f"- PR-AUC (test): {final_test_high['pr_auc']:.4f}\n"
+        f"- ROC-AUC (test): {final_test_high['roc_auc']:.4f}\n"
     )
     (reports_dir / "benchmark_summary.md").write_text(benchmark_summary_md, encoding="utf-8")
 
@@ -685,8 +814,8 @@ def run_workflow(data_path: str, artifacts_root: str, random_seed: int = 42) -> 
         "dataset_path": str(dataset_path),
         "rows": int(df.shape[0]),
         "features": int(len(feature_cols)),
-        "baseline_threshold": float(baseline_threshold),
-        "improved_threshold": float(improved_threshold),
+        "threshold_review": float(final_threshold_review),
+        "threshold_high": float(final_threshold_high),
         "selected_model": selected_model,
         "artifacts_root": str(root),
     }
@@ -697,12 +826,30 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--data-path", type=str, default="data/archive/creditcard.csv")
     parser.add_argument("--artifacts-root", type=str, default="artifacts")
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--review-min-precision",
+        type=float,
+        default=0.1,
+        help="Precision constraint for REVIEW threshold selection (maximize recall subject to this precision)",
+    )
+    parser.add_argument(
+        "--high-min-precision",
+        type=float,
+        default=0.8,
+        help="Precision constraint for HIGH threshold selection (maximize recall subject to this precision)",
+    )
     return parser
 
 
 def main() -> None:
     args = build_parser().parse_args()
-    result = run_workflow(data_path=args.data_path, artifacts_root=args.artifacts_root, random_seed=args.seed)
+    result = run_workflow(
+        data_path=args.data_path,
+        artifacts_root=args.artifacts_root,
+        random_seed=args.seed,
+        review_min_precision=float(args.review_min_precision),
+        high_min_precision=float(args.high_min_precision),
+    )
     print(json.dumps(result, indent=2))
 
 

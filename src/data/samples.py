@@ -30,11 +30,12 @@ def sample_dataset_rows(
     strategy: str,
     seed: int | None,
     target_col: str = "Class",
+    include_label: bool = False,
 ) -> list[dict]:
     if n < 1:
         raise ValueError("n must be >= 1")
 
-    allowed = {"mixed", "fraud", "legit"}
+    allowed = {"mixed", "fraud", "legit", "production"}
     if strategy not in allowed:
         raise ValueError(f"Invalid strategy '{strategy}'. Allowed: {sorted(allowed)}")
 
@@ -58,6 +59,20 @@ def sample_dataset_rows(
             raise ValueError("No legitimate samples found in dataset")
         idx = rng.choice(pool.index.to_numpy(), size=min(n, len(pool)), replace=False)
         picked = pool.loc[idx]
+    elif strategy == "production":
+        # Approximate production-like sampling at the observed base rate.
+        # For small n, this will usually return all legitimate samples, which is the expected behavior.
+        if legit_df.empty and fraud_df.empty:
+            raise ValueError("Dataset contains no samples")
+        p_fraud = float(len(fraud_df) / max(len(df), 1))
+
+        rows = []
+        for _ in range(n):
+            want_fraud = bool(rng.random() < p_fraud)
+            pool = fraud_df if want_fraud and not fraud_df.empty else legit_df if not legit_df.empty else fraud_df
+            idx = rng.choice(pool.index.to_numpy(), size=1, replace=False)
+            rows.append(pool.loc[idx])
+        picked = pd.concat(rows, axis=0)
     else:
         n_fraud = min(max(1, n // 2), len(fraud_df)) if len(fraud_df) else 0
         n_legit = min(n - n_fraud, len(legit_df)) if len(legit_df) else 0
@@ -75,6 +90,8 @@ def sample_dataset_rows(
     out: list[dict] = []
     for _, row in picked.iterrows():
         feats = [float(row[c]) for c in feature_columns]
-        out.append({"features": feats, "class_label": int(row[target_col])})
+        payload: dict = {"features": feats}
+        if include_label:
+            payload["class_label"] = int(row[target_col])
+        out.append(payload)
     return out
-

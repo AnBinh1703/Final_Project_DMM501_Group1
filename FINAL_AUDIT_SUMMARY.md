@@ -182,7 +182,7 @@ New UI sections:
   - Transaction speed slider (optional)
 - Live Feed Section:
   - Scrollable transaction results feed
-  - Each entry: timestamp, amount, fraud_probability, label badge, API latency
+- Each entry: timestamp, amount, risk_score, tier badge, API latency
 - Statistics Panel:
   - Total transactions processed
   - Fraud count / Fraud rate
@@ -214,15 +214,15 @@ New UI sections:
   - [ ] Click "Start Stream (Dataset Mode)" → streaming begins
   - [ ] Transactions appear in feed every 500ms
   - [ ] API /predict called for each transaction
-  - [ ] Results display: amount, fraud_probability, badge color
+  - [ ] Results display: amount, risk_score, tier badge color
   
 - [ ] **Counters Update**
   - [ ] Total processed count increments
-  - [ ] Fraud count increments when fraud_probability > 0.14
+  - [ ] High-risk count increments when risk_score >= threshold_high
   - [ ] Fraud rate percentage updates correctly
   
 - [ ] **Predictions Correct**
-  - [ ] Known fraud samples show red badge when fraud_probability > threshold
+  - [ ] Known fraud samples show High tier when risk_score >= threshold_high
   - [ ] Known legitimate samples show green badge
   - [ ] Probabilities range [0, 1]
   
@@ -366,7 +366,7 @@ New UI sections:
 | Requirement | Evidence | Status |
 |-------------|----------|--------|
 | REST API built | FastAPI in `src/api/main.py` with 5 endpoints | ✅ Verified |
-| /predict endpoint | Accepts 30-feature JSON, returns fraud_probability + label | ✅ Verified |
+| /predict endpoint | Accepts 30-feature JSON, returns risk_score + tier/action | ✅ Verified |
 | /health endpoint | Returns model_loaded, model_version, expected_features | ✅ Verified |
 | /metrics endpoint | Prometheus metrics in text format | ✅ Verified |
 | Request validation | Pydantic schema enforces 30 features, returns 422 on error | ✅ Verified |
@@ -385,7 +385,7 @@ New UI sections:
 | Web UI exists | `frontend/index.html` (550+ lines) | ✅ Verified |
 | Single prediction mode | Form with 30 input fields, "Load Sample" button, "Predict Fraud" | ✅ Verified |
 | Sample data loading | Loads real Kaggle transactions; "Load Sample" populates form | ✅ Verified |
-| Results display | Shows fraud_probability, fraud_label (red/green badge), threshold | ✅ Verified |
+| Results display | Shows risk_score + tier/action, thresholds (review/high) | ✅ Verified |
 | CORS configured | API running on 8000; frontend on 8080; fetch calls work | ✅ Verified |
 | Error display | Invalid input → error message; API timeout → user notification | ✅ Verified |
 
@@ -717,4 +717,3 @@ This fraud detection MLOps project demonstrates **comprehensive mastery of the f
 **Grade Outlook**: With real-time demo verified + baseline comparison + RAI section, expect: **A- to A range** (assuming rubric weight toward implementation, documentation, and demonstration).
 
 **Go finish strong.** 💪
-

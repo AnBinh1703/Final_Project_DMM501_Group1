@@ -30,9 +30,13 @@
   function assertPredictShape(body) {
     if (!body || typeof body !== 'object') throw new Error('Invalid /predict response: not an object.');
     if (typeof body.request_id !== 'string') throw new Error('Invalid /predict response: missing request_id.');
-    if (typeof body.fraud_probability !== 'number') throw new Error('Invalid /predict response: missing fraud_probability.');
+    if (typeof body.risk_score !== 'number') throw new Error('Invalid /predict response: missing risk_score.');
+    if (typeof body.risk_tier !== 'string') throw new Error('Invalid /predict response: missing risk_tier.');
+    if (typeof body.action !== 'string') throw new Error('Invalid /predict response: missing action.');
     if (body.fraud_label !== 0 && body.fraud_label !== 1) throw new Error('Invalid /predict response: missing fraud_label.');
-    if (typeof body.threshold !== 'number') throw new Error('Invalid /predict response: missing threshold.');
+    if (typeof body.threshold_review !== 'number') throw new Error('Invalid /predict response: missing threshold_review.');
+    if (typeof body.threshold_high !== 'number') throw new Error('Invalid /predict response: missing threshold_high.');
+    if (typeof body.score_semantics !== 'string') throw new Error('Invalid /predict response: missing score_semantics.');
     if (typeof body.model_version !== 'string') throw new Error('Invalid /predict response: missing model_version.');
     return body;
   }
@@ -107,8 +111,29 @@
         clear();
       }
     }
+
+    async getDatasetSamples({ n = 1, strategy = 'production', seed = 42 } = {}) {
+      const controller = new AbortController();
+      const clear = withTimeout(this.defaultTimeoutMs, controller);
+      const url = `${this.baseUrl}/dataset/samples?n=${encodeURIComponent(String(n))}&strategy=${encodeURIComponent(String(strategy))}&seed=${encodeURIComponent(String(seed))}`;
+
+      try {
+        const resp = await fetch(url, { method: 'GET', signal: controller.signal });
+        const text = await resp.text();
+        const body = safeJsonParse(text);
+        if (!resp.ok) {
+          const detail = body && body.detail ? String(body.detail) : `HTTP ${resp.status}`;
+          throw new Error(`Dataset samples failed: ${detail}`);
+        }
+        if (!body || typeof body !== 'object' || !Array.isArray(body.samples)) {
+          throw new Error('Invalid /dataset/samples response shape.');
+        }
+        return body;
+      } finally {
+        clear();
+      }
+    }
   }
 
   window.ApiClient = ApiClient;
 })();
-

@@ -25,21 +25,21 @@ Card and payment fraud causes direct financial loss and operational cost. A frau
 - reduce customer friction by calibrating thresholds to control false positives
 
 ### Personas
-- **Risk Operations Analyst**: needs a probability score and threshold-based decision for review/blocks
+- **Risk Operations Analyst**: needs an interpretable risk score plus threshold-based tiers (review vs high-risk auto action)
 - **Backend/Platform Engineer**: needs a stable, observable API with clear deployment steps
 - **Compliance/Audit**: needs explainability artifacts and documented limitations
 
 ### Primary use cases
 1. Score a single transaction in milliseconds (API call) and return fraud probability + label.
 2. Monitor service health/latency/error-rate and the fraud score distribution.
-3. Re-train and version the model; deploy a new artifact with a defined threshold.
+3. Re-train and version the model; deploy a new artifact with defined review/high thresholds.
 
 ## Requirements
 
 ### Functional requirements
 | ID | Requirement | Priority |
 |---|---|---|
-| F1 | Provide `/predict` endpoint that returns `fraud_probability` and threshold-based `fraud_label` | Must |
+| F1 | Provide `/predict` endpoint that returns `risk_score` plus tiered decision (`risk_tier`, `action`) | Must |
 | F2 | Provide `/health` endpoint including `model_loaded` and `model_version` | Must |
 | F3 | Provide `/metrics` Prometheus endpoint | Must |
 | F4 | Provide training pipeline that produces a loadable model artifact + metadata | Must |
@@ -106,7 +106,7 @@ python -m src.pipelines.train_pipeline --data-path data/raw/creditcard.csv --art
 
 Artifacts created:
 - `artifacts/model.joblib` (loadable model)
-- `artifacts/model_info.json` (threshold, version, n_features)
+- `artifacts/model_info.json` (threshold_review/high, version, n_features)
 - `artifacts/metrics_report.json` (evaluation metrics)
 
 ### 3) Run the API with the model loaded
@@ -205,7 +205,7 @@ See `RESPONSIBLE_AI.md` for:
 1. Train model (synthetic) to produce `artifacts/` outputs.
 2. Start Compose stack.
 3. Show API `/health` and Swagger `/docs`.
-4. Call `/predict` from Swagger or curl; show response includes `model_version` and `threshold`.
+4. Call `/predict` from Swagger or curl; show response includes `model_version` and thresholds (review/high).
 5. Open Prometheus and Grafana; show live request rate and latency.
 6. Show `artifacts/metrics_report.json` and Responsible AI doc.
 

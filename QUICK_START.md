@@ -67,7 +67,7 @@ Key outputs:
   - `artifacts/reports/model_selection_summary.json`
 - Deployable model:
   - `artifacts/models/final_model.joblib`
-  - `artifacts/models/model_info.json` (threshold + feature columns)
+  - `artifacts/models/model_info.json` (threshold_review/high + feature columns)
 
 ### 1.3 (Optional) Generate artifacts quickly (synthetic dataset)
 
@@ -86,6 +86,7 @@ Option A (real dataset model, explicit):
 ```bash
 MODEL_PATH=artifacts/models/final_model.joblib \
 MODEL_VERSION=creditcard-production-v1 \
+REVIEW_THRESHOLD=0.84 \
 FRAUD_THRESHOLD=0.99 \
 uvicorn src.api.main:app --host 0.0.0.0 --port 8000
 ```
@@ -94,6 +95,7 @@ Option B (synthetic model, explicit):
 ```bash
 MODEL_PATH=artifacts/model.joblib \
 MODEL_VERSION=local-demo \
+REVIEW_THRESHOLD=0.10 \
 FRAUD_THRESHOLD=0.14 \
 uvicorn src.api.main:app --host 0.0.0.0 --port 8000
 ```
@@ -139,7 +141,7 @@ Using the UI:
 3. Click **Start Stream** (Real Sample Stream or Random Generated Stream).
 4. Watch:
    - KPI cards update live
-   - Alerts populate for Suspicious/Fraud
+   - Alerts populate for Review/High
    - Transaction feed appends rows (append-only, keeps recent history)
    - Chart updates in real time
 

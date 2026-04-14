@@ -31,14 +31,14 @@
 - **Framework**: FastAPI with Uvicorn
 - **Endpoints**:
   - GET /health: Returns model status, version, feature count
-  - POST /predict: Accepts 30-feature vector, returns fraud probability, label, threshold, model version, request ID
+  - POST /predict: Accepts 30-feature vector, returns risk_score, risk_tier/action, thresholds (review/high), model version, request ID
   - GET /metrics: Prometheus metrics (tested, returns 200)
   - GET /docs: Swagger UI (tested, returns 200)
 - **Metrics Instrumentation**:
   - Request tracking by endpoint, method, status
   - Latency histograms with percentile buckets
-  - Fraud prediction counts by label
-  - Fraud score aggregation for average computation
+  - Decision counts by tier (LOW/REVIEW/HIGH)
+  - Risk score aggregation for average computation
 - **Error Handling**:
   - 503 if model not loaded
   - 422 if feature count mismatch (expects 30)
@@ -51,7 +51,7 @@
   - Input fields for Time, Amount, V1-V28 features
   - "Load Sample" button with real Kaggle transaction data
   - "Predict Fraud" button to call API
-  - Display: fraud_probability, fraud_label, threshold, model_version, request_id
+  - Display: risk_score, risk_tier/action, thresholds (review/high), model_version, request_id
   - Error messages displayed clearly
   - Loading indicator during prediction
   - Red badge for fraud, green badge for legitimate
@@ -77,7 +77,7 @@
 3. User clicks "Predict Fraud" ✓
 4. Frontend sends 30-feature vector to http://localhost:8000/predict ✓
 5. API loads model, preprocesses features (identity), calls predict_proba ✓
-6. API returns fraud_probability=0.000000, fraud_label=0, threshold=0.14 ✓
+6. API returns risk_score=..., risk_tier/action, thresholds (review/high) ✓
 7. Frontend displays "✓ LEGITIMATE" badge with green styling ✓
 8. Metrics recorded: api_requests_total, latency, fraud_predictions_total ✓
 

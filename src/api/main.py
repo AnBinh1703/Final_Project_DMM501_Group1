@@ -73,10 +73,12 @@ async def health() -> dict:
         "model_loaded": loaded is not None,
         "model_version": loaded.model_version if loaded else None,
         "expected_features": loaded.n_features if loaded else None,
-        "threshold": loaded.threshold if loaded else None,
+        "threshold_review": loaded.threshold_review if loaded else None,
+        "threshold_high": loaded.threshold_high if loaded else None,
         "model_type": loaded.model_type if loaded else None,
         "feature_names": loaded.feature_columns if loaded and loaded.feature_columns else None,
         "selection_timestamp_utc": loaded.selection_timestamp_utc if loaded else None,
+        "score_semantics": loaded.score_semantics if loaded else None,
     }
 
 
@@ -144,7 +146,8 @@ async def predict(req: PredictRequest) -> PredictResponse:
             raise HTTPException(status_code=503, detail="Model not loaded. Set MODEL_PATH and restart.")
 
         model = loaded.model
-        threshold = loaded.threshold
+        threshold_review = loaded.threshold_review
+        threshold_high = loaded.threshold_high
 
         if req.features is None and req.features_by_name is None:
             record_response(endpoint=endpoint, method=method, http_status=422)
@@ -193,16 +196,31 @@ async def predict(req: PredictRequest) -> PredictResponse:
             record_response(endpoint=endpoint, method=method, http_status=422)
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-        label = int(proba >= threshold)
+        if proba >= threshold_high:
+            risk_tier = "HIGH"
+            action = "block"
+            label = 1
+        elif proba >= threshold_review:
+            risk_tier = "REVIEW"
+            action = "review"
+            label = 0
+        else:
+            risk_tier = "LOW"
+            action = "allow"
+            label = 0
 
-        record_prediction(score=proba, label=label)
+        record_prediction(score=proba, tier=risk_tier, action=action)
         record_response(endpoint=endpoint, method=method, http_status=200)
 
         return PredictResponse(
             request_id=new_request_id(),
-            fraud_probability=proba,
+            risk_score=proba,
+            risk_tier=risk_tier,
+            action=action,
             fraud_label=label,
-            threshold=threshold,
+            threshold_review=threshold_review,
+            threshold_high=threshold_high,
+            score_semantics=loaded.score_semantics,
             model_version=loaded.model_version,
             model_type=loaded.model_type,
             n_features=loaded.n_features,

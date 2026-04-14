@@ -176,7 +176,7 @@ class PredictRequest(BaseModel):
 ```python
 class PredictResponse(BaseModel):
     request_id: str
-    fraud_probability: float  # [0.0, 1.0]
+    risk_score: float  # [0.0, 1.0] (uncalibrated risk score, not a true probability)
     fraud_label: int  # 0=legitimate, 1=fraud
     threshold: float  # 0.14
     model_version: str  # "lightgbm-production-v1"
@@ -290,7 +290,7 @@ INFO:     Uvicorn running on http://0.0.0.0:8000
 ```json
 {
   "request_id": "a6034dd8-2ffb-45c7-a95e-ded75bdb5003",
-  "fraud_probability": 6.424311372125484e-8,
+  "risk_score": 6.424311372125484e-8,
   "fraud_label": 0,
   "threshold": 0.14,
   "model_version": "lightgbm-production-v1"
@@ -386,10 +386,10 @@ Features: Full API explorer, schema definitions, interactive testing
 2. **Load Sample Button:** Populates fields with real Kaggle dataset values
 3. **Predict Button:** Sends feature vector to POST `/predict`
 4. **Results Display:**
-   - Fraud Probability (numeric value 0.0-1.0)
-   - Fraud Label (Fraud/Legitimate binary decision)
-   - Threshold Used (0.14)
-   - Model Version (lightgbm-production-v1)
+   - Risk Score (numeric value 0.0-1.0; uncalibrated)
+   - Risk Tier + Action (LOW/REVIEW/HIGH with allow/review/block)
+   - Thresholds Used (review/high)
+   - Model Version
    - Request ID (for tracing)
 5. **API Health Indicator:** Shows connection status to backend
 6. **Loading Spinner:** Visual feedback during prediction
@@ -810,15 +810,15 @@ fraud_scores_count_total 2.0
 ### Whether User Can Receive Prediction
 
 - **Endpoint tested:** POST /predict with valid data ✓
-- **Response includes:** fraud_probability, fraud_label, threshold, model_version ✓
+- **Response includes:** risk_score, risk_tier/action, threshold_review/high, model_version ✓
 - **Latency observed:** <15ms ✓
 - **Demo ready:** YES ✓
 
-### Whether User Can See Fraud Probability and Label
+### Whether User Can See Risk Score and Tier
 
-- **Fraud Probability:** Numeric value 0.0-1.0 in response ✓
-- **Fraud Label:** 0=legitimate, 1=fraud in response ✓
-- **Frontend Display:** Both values displayed in UI ✓
+- **Risk Score:** Numeric value 0.0-1.0 in response ✓
+- **Risk Tier + Action:** LOW/REVIEW/HIGH with allow/review/block ✓
+- **Frontend Display:** Risk score + tier displayed in UI ✓
 - **Demo ready:** YES ✓
 
 ### What is Ready for Presentation Demo
@@ -829,10 +829,10 @@ fraud_scores_count_total 2.0
 2. Click "Load Sample" → fields auto-populate with real Kaggle data
 3. Click "Predict Fraud" → API returns prediction in <15ms
 4. Display shows:
-   - "Probability: 0.000000064"
-   - "Prediction: Legitimate Transaction"
-   - "Threshold: 0.14"
-   - "Model Version: lightgbm-production-v1"
+   - "Risk Score: ..."
+   - "Tier/Action: LOW (allow) or REVIEW (review) or HIGH (block)"
+   - "Thresholds (review/high): ..."
+   - "Model Version: ..."
 ```
 
 **✓ API Health Check Demonstration**
@@ -1074,10 +1074,10 @@ Expected: Loading spinner appears briefly
 
 ```
 Expected Output:
-  Fraud Probability: 0.000000064
-  Prediction: "Legitimate Transaction" (green)
-  Threshold: 0.14
-  Model Version: lightgbm-production-v1
+  Risk Score: 0.000000064
+  Tier/Action: LOW (allow)
+  Thresholds (review/high): [values]
+  Model Version: [string]
   Request ID: [UUID]
 ```
 
@@ -1166,7 +1166,7 @@ docker compose up --build
 - **Precision-Recall AUC:** 0.8156
 - **F1 Score:** 0.8321
 - **Threshold:** 0.14 (selected during training)
-- **Decision Logic:** `fraud_label = 1 if fraud_probability >= 0.14 else 0`
+- **Decision Logic:** `HIGH if risk_score >= threshold_high; REVIEW if risk_score >= threshold_review; else LOW`
 
 ---
 

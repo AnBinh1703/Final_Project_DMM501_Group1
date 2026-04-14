@@ -35,8 +35,11 @@ def test_predict_200_when_model_loaded(monkeypatch) -> None:
             assert r.status_code == 200
             body = r.json()
             assert body["model_version"] == "final-artifact"
-            assert 0.0 <= float(body["fraud_probability"]) <= 1.0
-            assert float(body["threshold"]) == 0.99
+            assert 0.0 <= float(body["risk_score"]) <= 1.0
+            assert body["risk_tier"] in {"LOW", "REVIEW", "HIGH"}
+            assert body["action"] in {"allow", "review", "block"}
+            assert 0.0 <= float(body["threshold_review"]) <= float(body["threshold_high"]) <= 1.0
+            assert isinstance(body["score_semantics"], str)
             assert int(body["n_features"]) == expected_features
             assert isinstance(body["feature_names"], list)
             assert len(body["feature_names"]) == expected_features
@@ -46,13 +49,15 @@ def test_predict_200_when_model_loaded(monkeypatch) -> None:
             r2 = await asgi_post_json(app, "/predict", {"features_by_name": by_name})
             assert r2.status_code == 200
             body2 = r2.json()
-            assert abs(float(body2["fraud_probability"]) - float(body["fraud_probability"])) < 1e-12
+            assert abs(float(body2["risk_score"]) - float(body["risk_score"])) < 1e-12
 
             metrics = await asgi_request(app, method="GET", url="/metrics")
             assert metrics.status_code == 200
             text = metrics.text
             assert "api_requests_total" in text
             assert "api_request_latency_seconds_bucket" in text
+            assert "risk_scores_sum_total" in text
+            assert "fraud_actions_total" in text
 
     asyncio.run(run())
 

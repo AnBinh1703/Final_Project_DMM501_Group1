@@ -29,15 +29,15 @@
   }
 
   function riskToRowClass(risk) {
-    if (risk === 'Fraud') return 'row-fraud';
-    if (risk === 'Suspicious') return 'row-suspicious';
-    if (risk === 'Normal') return 'row-normal';
+    if (risk === 'High') return 'row-fraud';
+    if (risk === 'Review') return 'row-suspicious';
+    if (risk === 'Low') return 'row-normal';
     return '';
   }
 
   function riskToBadgeClass(risk) {
-    if (risk === 'Fraud') return 'badge-fraud';
-    if (risk === 'Suspicious') return 'badge-suspicious';
+    if (risk === 'High') return 'badge-fraud';
+    if (risk === 'Review') return 'badge-suspicious';
     return 'badge-normal';
   }
 
@@ -56,6 +56,7 @@
       this.el.modelVersionText = $('modelVersionText');
       this.el.thresholdText = $('thresholdText');
       this.el.expectedFeaturesText = $('expectedFeaturesText');
+      this.el.scoreSemanticsText = $('scoreSemanticsText');
 
       this.el.statusBannerText = $('statusBannerText');
       this.el.errorBanner = $('errorBanner');
@@ -63,10 +64,10 @@
 
       this.el.runStateText = $('runStateText');
       this.el.kpiTotal = $('kpiTotal');
-      this.el.kpiFraud = $('kpiFraud');
-      this.el.kpiSuspicious = $('kpiSuspicious');
-      this.el.kpiFraudRate = $('kpiFraudRate');
-      this.el.kpiAvgProb = $('kpiAvgProb');
+      this.el.kpiHigh = $('kpiHigh');
+      this.el.kpiReview = $('kpiReview');
+      this.el.kpiAlertRate = $('kpiAlertRate');
+      this.el.kpiAvgScore = $('kpiAvgScore');
       this.el.kpiLastLatency = $('kpiLastLatency');
 
       this.el.alertsList = $('alertsList');
@@ -144,12 +145,22 @@
       if (this.el.statusBannerText) this.el.statusBannerText.textContent = message || '-';
     }
 
-    setModelInfo({ modelVersion, threshold, expectedFeatures }) {
+    setModelInfo({ modelVersion, thresholdReview, thresholdHigh, scoreSemantics, expectedFeatures }) {
       if (this.el.modelVersionText) this.el.modelVersionText.textContent = modelVersion || '-';
-      if (this.el.thresholdText) this.el.thresholdText.textContent = (typeof threshold === 'number') ? threshold.toFixed(4) : '-';
+      if (this.el.thresholdText) {
+        const r = (typeof thresholdReview === 'number') ? thresholdReview.toFixed(4) : '-';
+        const h = (typeof thresholdHigh === 'number') ? thresholdHigh.toFixed(4) : '-';
+        this.el.thresholdText.textContent = `${r} / ${h}`;
+      }
       if (this.el.expectedFeaturesText) this.el.expectedFeaturesText.textContent = (typeof expectedFeatures === 'number') ? String(expectedFeatures) : '-';
 
-      if (this.el.chartLastThr) this.el.chartLastThr.textContent = (typeof threshold === 'number') ? threshold.toFixed(4) : '-';
+      if (this.el.chartLastThr) {
+        const r = (typeof thresholdReview === 'number') ? thresholdReview.toFixed(4) : '-';
+        const h = (typeof thresholdHigh === 'number') ? thresholdHigh.toFixed(4) : '-';
+        this.el.chartLastThr.textContent = `${r} / ${h}`;
+      }
+
+      if (this.el.scoreSemanticsText) this.el.scoreSemanticsText.textContent = scoreSemantics || '-';
     }
 
     showError(message) {
@@ -168,15 +179,15 @@
       if (this.el.runStateText) this.el.runStateText.textContent = text;
     }
 
-    updateKPIs({ total, fraud, suspicious, avgProbability, lastLatencyMs }) {
+    updateKPIs({ total, high, review, avgRiskScore, lastLatencyMs }) {
       if (this.el.kpiTotal) this.el.kpiTotal.textContent = String(total || 0);
-      if (this.el.kpiFraud) this.el.kpiFraud.textContent = String(fraud || 0);
-      if (this.el.kpiSuspicious) this.el.kpiSuspicious.textContent = String(suspicious || 0);
+      if (this.el.kpiHigh) this.el.kpiHigh.textContent = String(high || 0);
+      if (this.el.kpiReview) this.el.kpiReview.textContent = String(review || 0);
 
-      const fraudRate = total > 0 ? (fraud / total) : 0;
-      if (this.el.kpiFraudRate) this.el.kpiFraudRate.textContent = `${(fraudRate * 100).toFixed(2)}%`;
+      const alertRate = total > 0 ? ((high + review) / total) : 0;
+      if (this.el.kpiAlertRate) this.el.kpiAlertRate.textContent = `${(alertRate * 100).toFixed(2)}%`;
 
-      if (this.el.kpiAvgProb) this.el.kpiAvgProb.textContent = pct(avgProbability);
+      if (this.el.kpiAvgScore) this.el.kpiAvgScore.textContent = pct(avgRiskScore);
       if (this.el.kpiLastLatency) {
         this.el.kpiLastLatency.textContent = (typeof lastLatencyMs === 'number' && Number.isFinite(lastLatencyMs))
           ? `${lastLatencyMs.toFixed(0)} ms`
@@ -228,7 +239,7 @@
       tr.appendChild(td(entry.timestamp, 'mono'));
       tr.appendChild(td(shortId(entry.requestId), 'mono'));
       tr.appendChild(td(money(entry.amount), 'right mono'));
-      tr.appendChild(td(entry.status === 'OK' ? pct(entry.fraudProbability) : '-', 'right mono'));
+      tr.appendChild(td(entry.status === 'OK' ? pct(entry.riskScore) : '-', 'right mono'));
 
       const riskTd = document.createElement('td');
       const riskBadge = document.createElement('span');
@@ -237,13 +248,17 @@
       riskTd.appendChild(riskBadge);
       tr.appendChild(riskTd);
 
-      tr.appendChild(td(entry.status === 'OK' ? String(entry.fraudLabel) : '-', 'center mono'));
-      tr.appendChild(td(entry.status === 'OK' ? entry.threshold.toFixed(4) : '-', 'right mono'));
+      tr.appendChild(td(entry.status === 'OK' ? String(entry.riskTier) : '-', 'center mono'));
+      tr.appendChild(td(entry.status === 'OK' ? String(entry.action || '-') : '-', 'center mono'));
+      const thrTxt = (entry.status === 'OK')
+        ? `${Number(entry.thresholdReview).toFixed(4)} / ${Number(entry.thresholdHigh).toFixed(4)}`
+        : '-';
+      tr.appendChild(td(thrTxt, 'right mono'));
       tr.appendChild(td(entry.latencyMs != null ? `${entry.latencyMs.toFixed(0)} ms` : '-', 'right mono'));
       tr.appendChild(td(entry.status, entry.status === 'OK' ? 'muted' : ''));
       tr.appendChild(td(entry.source || '-', 'muted'));
 
-      const isCase = entry.status === 'OK' && (entry.riskLevel === 'Suspicious' || entry.riskLevel === 'Fraud');
+      const isCase = entry.status === 'OK' && (entry.riskTier === 'REVIEW' || entry.riskTier === 'HIGH');
       if (isCase) {
         tr.classList.add('selectable');
         tr.addEventListener('click', () => {
@@ -266,7 +281,7 @@
         const tr = document.createElement('tr');
         tr.id = 'feedEmptyRow';
         const td = document.createElement('td');
-        td.colSpan = 10;
+        td.colSpan = 11;
         td.className = 'muted center';
         td.textContent = 'No items on this page.';
         tr.appendChild(td);
@@ -322,7 +337,7 @@
 
       const prob = document.createElement('div');
       prob.className = 'mono right';
-      prob.textContent = pct(alert.fraudProbability);
+      prob.textContent = pct(alert.riskScore);
 
       const risk = document.createElement('div');
       const badge = document.createElement('span');
@@ -350,7 +365,7 @@
         const tr = document.createElement('tr');
         tr.id = 'feedEmptyRow';
         const td = document.createElement('td');
-        td.colSpan = 10;
+        td.colSpan = 11;
         td.className = 'muted center';
         td.textContent = 'Stream not started.';
         tr.appendChild(td);
@@ -372,7 +387,7 @@
         this.el.alertsEmpty.textContent = 'No alerts yet.';
       }
 
-      this.drawChart({ points: [], threshold: null });
+      this.drawChart({ points: [], thresholdReview: null, thresholdHigh: null });
       if (this.el.chartLastProb) this.el.chartLastProb.textContent = '-';
       if (this.el.chartLastThr) this.el.chartLastThr.textContent = '-';
 
@@ -428,7 +443,7 @@
         tr.appendChild(td(c.timestamp, 'mono'));
         tr.appendChild(td(shortId(c.requestId), 'mono'));
         tr.appendChild(td(money(c.amount), 'right mono'));
-        tr.appendChild(td(pct(c.fraudProbability), 'right mono'));
+        tr.appendChild(td(pct(c.riskScore), 'right mono'));
 
         const riskTd = document.createElement('td');
         const badge = document.createElement('span');
@@ -464,8 +479,10 @@
       this.el.caseRisk.innerHTML = '';
       this.el.caseRisk.appendChild(badge);
 
-      this.el.caseProb.textContent = pct(caseObj.fraudProbability);
-      this.el.caseThr.textContent = (typeof caseObj.threshold === 'number') ? caseObj.threshold.toFixed(4) : '-';
+      this.el.caseProb.textContent = pct(caseObj.riskScore);
+      this.el.caseThr.textContent = (typeof caseObj.thresholdReview === 'number' && typeof caseObj.thresholdHigh === 'number')
+        ? `${caseObj.thresholdReview.toFixed(4)} / ${caseObj.thresholdHigh.toFixed(4)}`
+        : '-';
       this.el.caseAmount.textContent = money(caseObj.amount);
 
       this.el.caseNoteInput.value = caseObj.note || '';
@@ -479,7 +496,7 @@
       this.el.caseFeatures.textContent = JSON.stringify(feats);
     }
 
-    drawChart({ points, threshold }) {
+    drawChart({ points, thresholdReview, thresholdHigh }) {
       const ctx = this.chart.ctx;
       const canvas = this.chart.canvas;
       if (!ctx || !canvas) return;
@@ -509,9 +526,9 @@
         ctx.stroke();
       }
 
-      // Threshold line
-      if (typeof threshold === 'number' && Number.isFinite(threshold)) {
-        const yThr = padding + (1 - clamp01(threshold)) * plotH;
+      // Threshold lines (review + high)
+      if (typeof thresholdReview === 'number' && Number.isFinite(thresholdReview)) {
+        const yThr = padding + (1 - clamp01(thresholdReview)) * plotH;
         ctx.setLineDash([6, 4]);
         ctx.strokeStyle = 'rgba(245,158,11,0.85)';
         ctx.beginPath();
@@ -520,9 +537,19 @@
         ctx.stroke();
         ctx.setLineDash([]);
       }
+      if (typeof thresholdHigh === 'number' && Number.isFinite(thresholdHigh)) {
+        const yThr = padding + (1 - clamp01(thresholdHigh)) * plotH;
+        ctx.setLineDash([6, 4]);
+        ctx.strokeStyle = 'rgba(239,68,68,0.90)';
+        ctx.beginPath();
+        ctx.moveTo(padding, yThr);
+        ctx.lineTo(width - padding, yThr);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
 
       if (!Array.isArray(points) || points.length < 2) return;
-      const values = points.map(p => p.probability).filter(v => typeof v === 'number' && Number.isFinite(v));
+      const values = points.map(p => p.riskScore).filter(v => typeof v === 'number' && Number.isFinite(v));
       if (values.length < 2) return;
 
       ctx.strokeStyle = 'rgba(96,165,250,0.95)';

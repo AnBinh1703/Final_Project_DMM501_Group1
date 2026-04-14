@@ -90,7 +90,7 @@ Frontend sends 30-feature vector to API
      ↓
 API loads model, applies threshold 0.14
      ↓
-Response: fraud_probability=0.0, fraud_label=0 (LEGITIMATE)
+Response: risk_score=..., risk_tier/action (LOW/REVIEW/HIGH)
      ↓
 Frontend displays: ✓ LEGITIMATE badge (green)
 ```

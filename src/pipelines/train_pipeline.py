@@ -65,7 +65,8 @@ def _tune_threshold(
         metrics = _evaluate(y_true, y_score, threshold=float(threshold))
         if metrics["precision"] < min_precision:
             continue
-        if metrics["f1"] > best_metrics["f1"]:
+        # Fraud operations typically tune to maximize recall under a minimum precision constraint.
+        if metrics["recall"] > best_metrics["recall"]:
             best_threshold = float(threshold)
             best_metrics = metrics
 
@@ -126,6 +127,7 @@ def run_training(
     min_precision: float,
     n_samples_if_synthetic: int,
     fast: bool = False,
+    high_min_precision: float = 0.8,
 ) -> dict[str, Any]:
     df, source = load_training_dataframe(
         data_path=data_path,
@@ -174,7 +176,9 @@ def run_training(
 
     final_model = _train_final_model(X_train, y_train, positive_weight=positive_weight, fast=fast)
     final_val_scores = final_model.predict_proba(X_val)[:, 1]
-    tuned_threshold, tuned_metrics = _tune_threshold(y_val, final_val_scores, min_precision=min_precision, fast=fast)
+    threshold_review, metrics_review_val = _tune_threshold(y_val, final_val_scores, min_precision=min_precision, fast=fast)
+    threshold_high, metrics_high_val = _tune_threshold(y_val, final_val_scores, min_precision=high_min_precision, fast=fast)
+    threshold_review = float(min(threshold_review, threshold_high))
 
     X_train_full = np.concatenate([X_train, X_val], axis=0)
     y_train_full = np.concatenate([y_train, y_val], axis=0)
@@ -187,7 +191,8 @@ def run_training(
     final_pipeline.fit(X_train_full, y_train_full)
 
     final_test_scores = final_pipeline.predict_proba(X_test)[:, 1]
-    final_test_metrics = _evaluate(y_test, final_test_scores, threshold=tuned_threshold)
+    final_test_metrics_review = _evaluate(y_test, final_test_scores, threshold=float(threshold_review))
+    final_test_metrics_high = _evaluate(y_test, final_test_scores, threshold=float(threshold_high))
 
     model_version = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
 
@@ -212,8 +217,11 @@ def run_training(
         "models": {
             "baseline_logistic_regression_val": baseline_metrics,
             "candidate_random_forest_val": candidate_metrics,
-            "final_model_val_tuned_threshold": tuned_metrics,
-            "final_model_test": final_test_metrics,
+            "final_model_val_threshold_review": metrics_review_val,
+            "final_model_val_threshold_high": metrics_high_val,
+            "final_model_test_threshold_review": final_test_metrics_review,
+            # Backward-compatible key: treat "final_model_test" as the high-threshold operating point.
+            "final_model_test": final_test_metrics_high,
         },
         "final_model_name": "lightgbm" if HAS_LIGHTGBM else "random_forest_fallback",
         "model_version": model_version,
@@ -221,8 +229,10 @@ def run_training(
 
     model_info = {
         "model_version": model_version,
-        "threshold": float(tuned_threshold),
+        "threshold_review": float(threshold_review),
+        "threshold_high": float(threshold_high),
         "n_features": int(X.shape[1]),
+        "score_semantics": "risk_score_uncalibrated",
     }
 
     metrics_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
@@ -238,13 +248,14 @@ def run_training(
                 mlflow.log_param("target_col", target_col)
                 mlflow.log_param("final_model_name", report["final_model_name"])
                 mlflow.log_param("n_features", int(X.shape[1]))
-                mlflow.log_param("threshold", float(tuned_threshold))
+                mlflow.log_param("threshold_review", float(threshold_review))
+                mlflow.log_param("threshold_high", float(threshold_high))
                 final_metrics = report["models"]["final_model_test"]
                 mlflow.log_metric("test_pr_auc", float(final_metrics["pr_auc"]))
                 mlflow.log_metric("test_roc_auc", float(final_metrics["roc_auc"]))
-                mlflow.log_metric("test_precision", float(final_metrics["precision"]))
-                mlflow.log_metric("test_recall", float(final_metrics["recall"]))
-                mlflow.log_metric("test_f1", float(final_metrics["f1"]))
+                mlflow.log_metric("test_precision_high", float(final_metrics["precision"]))
+                mlflow.log_metric("test_recall_high", float(final_metrics["recall"]))
+                mlflow.log_metric("test_f1_high", float(final_metrics["f1"]))
                 mlflow.log_artifact(str(model_path))
                 mlflow.log_artifact(str(metrics_path))
                 mlflow.log_artifact(str(model_info_path))
@@ -270,7 +281,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--artifacts-dir", type=str, default="artifacts", help="Output artifacts directory")
     parser.add_argument("--target-col", type=str, default="Class", help="Target column name")
-    parser.add_argument("--min-precision", type=float, default=0.1, help="Minimum precision constraint for threshold tuning")
+    parser.add_argument(
+        "--min-precision",
+        type=float,
+        default=0.1,
+        help="Minimum precision constraint for REVIEW threshold tuning (maximize recall subject to this precision)",
+    )
+    parser.add_argument(
+        "--high-min-precision",
+        type=float,
+        default=0.8,
+        help="Minimum precision constraint for HIGH threshold tuning (maximize recall subject to this precision)",
+    )
     parser.add_argument(
         "--synthetic-samples",
         type=int,
@@ -290,6 +312,7 @@ def run() -> None:
         min_precision=args.min_precision,
         n_samples_if_synthetic=args.synthetic_samples,
         fast=bool(args.fast),
+        high_min_precision=float(args.high_min_precision),
     )
 
     final_test = result["report"]["models"]["final_model_test"]

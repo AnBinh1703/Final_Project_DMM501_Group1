@@ -33,7 +33,7 @@
 - HTML+JavaScript interactive form
 - "Load Sample" button with real Kaggle transaction
 - "Predict Fraud" button calls API successfully
-- Result display: fraud_probability, fraud_label, threshold, model_version, request_id
+- Result display: risk_score, risk_tier/action, thresholds (review/high), model_version, request_id
 - Status: Serves on localhost:8080/index.html, full integration with API working
 
 **Model & Inference**
@@ -178,7 +178,7 @@
    ```javascript
    POST http://localhost:8000/predict 
    {features: [30 floats]}
-   Response: {fraud_probability, fraud_label, threshold, ...}
+   Response: {risk_score, risk_tier, action, threshold_review, threshold_high, ...}
    Latency: Records time from start to end
    ```
 
@@ -264,7 +264,7 @@
 │     │  - Track: Request latency, prediction label          │
 │     │  - Update: Prometheus counters                       │
 │     └─ Output: HTTP 200
-│               {fraud_probability, fraud_label, threshold,   │
+│               {risk_score, risk_tier/action, thresholds,    │
 │                model_version, request_id}                   │
 │                                                             │
 │  3. /metrics
@@ -699,7 +699,7 @@ GET /health
 POST /predict
 ├─ Input: {features: [30 floats]}
 ├─ Validation: Check count and type
-└─ Output: {fraud_probability, fraud_label, threshold, ...}
+└─ Output: {risk_score, risk_tier/action, threshold_review/high, ...}
 
 GET /metrics
 └─ Prometheus format metrics (for monitoring)
@@ -1017,8 +1017,9 @@ SECTION 1  Backend Contract
                                                                                                                                                                    
   - Response fields (code + verified): JSON with                                                                                                                   
       - request_id: str                                                                                                                                            
-      - fraud_probability: float (0..1)                                                                                                                            
-      - fraud_label: int (0 or 1; computed as fraud_probability >= threshold)                                                                                      
+      - risk_score: float (0..1; uncalibrated risk score, not a true probability)                                                                                                                            
+      - risk_tier: str (LOW/REVIEW/HIGH; derived from thresholds)                                                                                      
+      - fraud_label: int (0 or 1; compatibility label: 1 only for HIGH tier)                                                                                      
       - threshold: float (0..1)                                                                                                                                    
       - model_version: str                                                                                                                                         
         Evidence: response model in src/api/schemas.py, and verified runtime keys match exactly.                                                                   
@@ -1038,7 +1039,7 @@ SECTION 1  Backend Contract
                                                                                                                                                                    
   From the actual /predict response:                                                                                                                               
                                                                                                                                                                    
-  - fraud_probability: primary continuous signal; drives chart (probability over time) and “risk” display.                                                         
+  - risk_score: primary continuous signal; drives chart (score over time) and tiered “risk” display.                                                         
   - fraud_label: binary decision already computed by backend using backend threshold; drives red/green labeling and fraud counters.                                
   - threshold: must be displayed and used as the chart threshold line (do not hardcode 0.14 in UI logic).                                                          
   - request_id: per-request trace token; include in the feed for auditability and Q&A (“show me that specific request”).                                           
@@ -1143,7 +1144,7 @@ SECTION 1  Backend Contract
                                                                                                                                                                    
   2. /predict valid                                                                                                                                                
                                                                                                                                                                    
-  - Send 30-length vector; expect 200 and the exact keys: request_id, fraud_probability, fraud_label, threshold, model_version.                                    
+  - Send 30-length vector; expect 200 and keys: request_id, risk_score, risk_tier, action, threshold_review, threshold_high, model_version.                                    
                                                                                                                                                                    
   3. /predict invalid                                                                                                                                              
                                                                                                                                                                    

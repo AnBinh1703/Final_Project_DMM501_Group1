@@ -29,10 +29,10 @@
     },
     {
       "datasource": {"type": "prometheus"},
-      "title": "Average Fraud Score",
+      "title": "Average Risk Score",
       "targets": [
         {
-          "expr": "fraud_scores_sum_total / fraud_scores_count_total",
+          "expr": "risk_scores_sum_total / risk_scores_count_total",
           "refId": "A"
         }
       ],
@@ -40,7 +40,7 @@
     },
     {
       "datasource": {"type": "prometheus"},
-      "title": "Fraud Predictions by Label",
+      "title": "Decisions by Tier",
       "targets": [
         {
           "expr": "fraud_predictions_total",

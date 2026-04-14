@@ -49,7 +49,7 @@ flowchart TD
 
 Key outputs:
 - `artifacts/model.joblib`: model/pipeline artifact loadable by the API
-- `artifacts/model_info.json`: `model_version`, `threshold`, `n_features`
+- `artifacts/model_info.json`: `model_version`, `threshold_review`, `threshold_high`, `n_features`
 - `artifacts/metrics_report.json`: evaluation report for submission evidence
 
 ### Inference Flow
@@ -64,10 +64,10 @@ sequenceDiagram
   A->>A: Validate length vs n_features
   A->>A: Preprocess -> ndarray(1,n)
   A->>M: predict_proba(X)
-  M-->>A: fraud_probability
-  A->>A: label = proba >= threshold
+  M-->>A: risk_score (0..1, uncalibrated)
+  A->>A: tier = HIGH if score>=threshold_high else REVIEW if score>=threshold_review else LOW
   A->>P: emit counters/histograms
-  A-->>C: {fraud_probability, fraud_label, threshold, model_version}
+  A-->>C: {risk_score, risk_tier, action, threshold_review, threshold_high, model_version}
 ```
 
 ### Monitoring Flow
@@ -114,7 +114,7 @@ Alerts are evaluated in Prometheus and visible in the Prometheus UI:
 ## Artifact Strategy and Versioning
 - The serving API loads a single model artifact path (`MODEL_PATH`).
 - Model metadata (`model_info.json`) defines:
-  - `threshold`: business-calibrated operating point
+  - `threshold_review` and `threshold_high`: tiered operating points (manual review vs high-risk auto action)
   - `model_version`: version string used in responses
   - `n_features`: prevents silent feature mismatch at inference
 

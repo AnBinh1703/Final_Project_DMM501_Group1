@@ -338,7 +338,7 @@ From `src/api/schemas.py`:
 
 **PredictResponse**
 - `request_id: str`
-- `fraud_probability: float` (0..1)
+- `risk_score: float` (0..1, uncalibrated)
 - `fraud_label: int` (0/1)
 - `threshold: float` (0..1)
 - `model_version: str`
@@ -420,8 +420,9 @@ From `frontend/app.js` + `frontend/demo-data.js`:
 
 ### 9.4 Risk classification + alerting (actual logic)
 From `frontend/app.js`:
-- `Normal` if `fraud_probability < 0.05`
-- `Fraud` if `fraud_probability >= threshold` (threshold returned by backend)
+- `LOW` if `risk_score < threshold_review`
+- `REVIEW` if `threshold_review <= risk_score < threshold_high`
+- `HIGH` if `risk_score >= threshold_high`
 - Else `Suspicious`
 
 Alerts are created for `Suspicious` and `Fraud` and shown in the Alert Panel.

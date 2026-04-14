@@ -7,11 +7,23 @@
   const MAX_FEED_ITEMS = 2500;
   const MAX_CASE_ITEMS = 1200;
 
-  function classifyRisk(fraudProbability, threshold) {
-    if (typeof fraudProbability !== 'number' || !Number.isFinite(fraudProbability)) return 'Normal';
-    if (fraudProbability < 0.05) return 'Normal';
-    if (typeof threshold === 'number' && Number.isFinite(threshold) && fraudProbability >= threshold) return 'Fraud';
-    return 'Suspicious';
+  function classifyTier(riskScore, thresholdReview, thresholdHigh) {
+    if (typeof riskScore !== 'number' || !Number.isFinite(riskScore)) return 'LOW';
+    if (typeof thresholdHigh === 'number' && Number.isFinite(thresholdHigh) && riskScore >= thresholdHigh) return 'HIGH';
+    if (typeof thresholdReview === 'number' && Number.isFinite(thresholdReview) && riskScore >= thresholdReview) return 'REVIEW';
+    return 'LOW';
+  }
+
+  function tierToUiLabel(tier) {
+    if (tier === 'HIGH') return 'High';
+    if (tier === 'REVIEW') return 'Review';
+    return 'Low';
+  }
+
+  function tierToAction(tier) {
+    if (tier === 'HIGH') return 'block';
+    if (tier === 'REVIEW') return 'review';
+    return 'allow';
   }
 
   function sleep(ms, signal) {
@@ -80,7 +92,9 @@
     modelLoaded: false,
     modelVersion: null,
     expectedFeatures: null,
-    threshold: null,
+    thresholdReview: null,
+    thresholdHigh: null,
+    scoreSemantics: null,
 
     activeView: 'dashboard', // 'dashboard' | 'review'
     running: false,
@@ -89,14 +103,18 @@
 
     // KPIs
     total: 0,
-    fraud: 0,
-    suspicious: 0,
-    avgProbability: 0,
+    high: 0,
+    review: 0,
+    avgRiskScore: 0,
     lastLatencyMs: null,
 
     chartPoints: [],
     consecutiveErrors: 0,
     streamAbort: null,
+
+    // Streaming realism controls (client-side)
+    spikeRemaining: 0,
+    seed: 42,
 
     // Data stores (newest-first)
     nextId: 1,
@@ -109,7 +127,7 @@
     feedSelectedId: null,
 
     // Review filters + pagination
-    reviewRiskFilter: 'all', // all | Suspicious | Fraud
+    reviewRiskFilter: 'all', // all | Review | High
     reviewHandledFilter: 'unhandled', // unhandled | all | handled
     reviewSearch: '',
     reviewPage: 1,
@@ -167,7 +185,9 @@
   function refreshHeader() {
     ui.setModelInfo({
       modelVersion: state.modelVersion || '-',
-      threshold: state.threshold,
+      thresholdReview: state.thresholdReview,
+      thresholdHigh: state.thresholdHigh,
+      scoreSemantics: state.scoreSemantics,
       expectedFeatures: state.expectedFeatures,
     });
   }
@@ -183,6 +203,9 @@
       state.modelLoaded = Boolean(body.model_loaded);
       state.modelVersion = body.model_version ? String(body.model_version) : '-';
       state.expectedFeatures = (typeof body.expected_features === 'number') ? body.expected_features : null;
+      state.thresholdReview = (typeof body.threshold_review === 'number') ? body.threshold_review : null;
+      state.thresholdHigh = (typeof body.threshold_high === 'number') ? body.threshold_high : null;
+      state.scoreSemantics = body.score_semantics ? String(body.score_semantics) : null;
 
       const contractOk = state.expectedFeatures === 30;
       const msg = contractOk
@@ -207,37 +230,37 @@
   function updateKPIs() {
     ui.updateKPIs({
       total: state.total,
-      fraud: state.fraud,
-      suspicious: state.suspicious,
-      avgProbability: state.avgProbability,
+      high: state.high,
+      review: state.review,
+      avgRiskScore: state.avgRiskScore,
       lastLatencyMs: state.lastLatencyMs,
     });
   }
 
-  function pushChartPoint(probability) {
-    state.chartPoints.push({ probability });
+  function pushChartPoint(riskScore) {
+    state.chartPoints.push({ riskScore });
     if (state.chartPoints.length > MAX_CHART_POINTS) state.chartPoints.shift();
-    ui.drawChart({ points: state.chartPoints, threshold: state.threshold });
+    ui.drawChart({ points: state.chartPoints, thresholdReview: state.thresholdReview, thresholdHigh: state.thresholdHigh });
   }
 
   function recomputeKPIsFromFeed() {
     // Recompute totals only from OK predictions (errors excluded)
     let total = 0;
-    let fraud = 0;
-    let suspicious = 0;
+    let high = 0;
+    let review = 0;
     let avg = 0;
 
     for (const item of state.feedItems) {
       if (item.status !== 'OK') continue;
       total += 1;
-      avg += item.fraudProbability;
-      if (item.riskLevel === 'Fraud') fraud += 1;
-      if (item.riskLevel === 'Suspicious') suspicious += 1;
+      avg += item.riskScore;
+      if (item.riskTier === 'HIGH') high += 1;
+      if (item.riskTier === 'REVIEW') review += 1;
     }
     state.total = total;
-    state.fraud = fraud;
-    state.suspicious = suspicious;
-    state.avgProbability = total ? (avg / total) : 0;
+    state.high = high;
+    state.review = review;
+    state.avgRiskScore = total ? (avg / total) : 0;
   }
 
   function renderFeed({ incremental } = {}) {
@@ -316,11 +339,15 @@
 
   function recordPrediction({ result, tx, timestamp }) {
     state.lastLatencyMs = result._latencyMs;
-    state.threshold = result.threshold;
+    state.thresholdReview = result.threshold_review;
+    state.thresholdHigh = result.threshold_high;
+    state.scoreSemantics = result.score_semantics || state.scoreSemantics;
     state.modelVersion = result.model_version || state.modelVersion;
 
-    const p = result.fraud_probability;
-    const risk = classifyRisk(p, state.threshold);
+    const score = result.risk_score;
+    const tier = result.risk_tier;
+    const riskLabel = tierToUiLabel(tier);
+    const action = result.action || tierToAction(tier);
 
     const id = state.nextId++;
     const entry = {
@@ -328,10 +355,13 @@
       timestamp,
       requestId: result.request_id,
       amount: tx.amount,
-      fraudProbability: p,
+      riskScore: score,
+      riskTier: tier,
+      action,
       fraudLabel: result.fraud_label,
-      threshold: result.threshold,
-      riskLevel: risk,
+      thresholdReview: result.threshold_review,
+      thresholdHigh: result.threshold_high,
+      riskLevel: riskLabel,
       latencyMs: result._latencyMs,
       status: 'OK',
       source: tx.source,
@@ -361,14 +391,16 @@
       });
     }
 
-    if (risk !== 'Normal') {
+    if (tier !== 'LOW') {
       addCaseItem(entry);
       ui.prependAlert({
         id: entry.id,
         requestId: entry.requestId,
-        fraudProbability: entry.fraudProbability,
+        riskScore: entry.riskScore,
         amount: entry.amount,
         riskLevel: entry.riskLevel,
+        riskTier: entry.riskTier,
+        action: entry.action,
         timestamp: entry.timestamp,
       });
 
@@ -378,8 +410,7 @@
       }
     }
 
-    if (ui.el.chartLastThr) ui.el.chartLastThr.textContent = state.threshold.toFixed(4);
-    pushChartPoint(p);
+    pushChartPoint(score);
 
     // KPIs update
     recomputeKPIsFromFeed();
@@ -394,9 +425,12 @@
       timestamp,
       requestId: '-',
       amount: tx && typeof tx.amount === 'number' ? tx.amount : null,
-      fraudProbability: null,
+      riskScore: null,
       fraudLabel: null,
-      threshold: state.threshold != null ? state.threshold : 0,
+      thresholdReview: state.thresholdReview != null ? state.thresholdReview : 0,
+      thresholdHigh: state.thresholdHigh != null ? state.thresholdHigh : 0,
+      riskTier: '-',
+      action: '-',
       riskLevel: '-',
       latencyMs: (typeof latencyMs === 'number' && Number.isFinite(latencyMs)) ? latencyMs : null,
       status: 'ERROR',
@@ -422,8 +456,31 @@
 
   async function getNextTransaction() {
     if (state.mode === 'real') {
-      if (typeof DemoData.ensureRealSamplesLoaded === 'function') await DemoData.ensureRealSamplesLoaded();
-      return await DemoData.getNextRealTransaction();
+      // Production-like sampling:
+      // - default: dataset-backed sampling at the real base rate (~0.17% fraud)
+      // - occasional short fraud "spikes" for demo visibility (does not claim to be a perfect simulator)
+      const SPIKE_START_PROB = 0.00008; // ~1 spike every ~3.5 hours at 1 txn/sec
+      const SPIKE_MIN = 4;
+      const SPIKE_MAX = 9;
+
+      if (state.spikeRemaining <= 0 && Math.random() < SPIKE_START_PROB) {
+        state.spikeRemaining = SPIKE_MIN + Math.floor(Math.random() * (SPIKE_MAX - SPIKE_MIN + 1));
+      }
+
+      const strategy = state.spikeRemaining > 0 ? 'fraud' : 'production';
+      if (state.spikeRemaining > 0) state.spikeRemaining -= 1;
+
+      const body = await api.getDatasetSamples({ n: 1, strategy, seed: state.seed });
+      state.seed += 1;
+      const s = body.samples && body.samples[0] ? body.samples[0] : null;
+      if (!s || !Array.isArray(s.features)) throw new Error('Dataset sample missing features.');
+      return {
+        source: strategy === 'fraud' ? 'fraud-spike' : 'dataset',
+        features: s.features.map(Number),
+        time_s: (typeof s.time_s === 'number') ? s.time_s : s.features[0],
+        amount: (typeof s.amount === 'number') ? s.amount : s.features[29],
+        groundTruth: (typeof s.class_label === 'number') ? s.class_label : null,
+      };
     }
     return DemoData.generateRandomTransaction();
   }
@@ -487,6 +544,7 @@
 
     state.running = true;
     state.consecutiveErrors = 0;
+    state.spikeRemaining = 0;
     ui.clearError();
     setButtons();
 
@@ -509,12 +567,13 @@
   function resetDashboard() {
     stopStream();
     state.total = 0;
-    state.fraud = 0;
-    state.suspicious = 0;
-    state.avgProbability = 0;
+    state.high = 0;
+    state.review = 0;
+    state.avgRiskScore = 0;
     state.lastLatencyMs = null;
     state.chartPoints = [];
     state.consecutiveErrors = 0;
+    state.spikeRemaining = 0;
 
     state.feedItems = [];
     state.caseItems = [];
@@ -689,6 +748,48 @@
     api = new ApiClient(state.apiBaseUrl);
   }
 
+  function readQueryParams() {
+    try {
+      const params = new URLSearchParams(window.location.search || '');
+      return {
+        autostart: params.get('autostart') === '1',
+        mode: params.get('mode'),
+        speedMs: params.get('speedMs'),
+      };
+    } catch (_) {
+      return { autostart: false, mode: null, speedMs: null };
+    }
+  }
+
+  function applyQueryParams() {
+    const q = readQueryParams();
+    const e = els();
+
+    if (q.mode === 'real' || q.mode === 'random') {
+      e.modeSelect.value = q.mode;
+      state.mode = q.mode;
+    }
+
+    if (q.speedMs != null) {
+      const ms = parseInt(q.speedMs, 10);
+      if (Number.isFinite(ms) && ms > 0) {
+        e.speedSelect.value = String(ms);
+        state.intervalMs = ms;
+      }
+    }
+
+    // Optional: delay the window load event by requesting a slow-loading image.
+    // This is used only for automated headless screenshots so the stream has time to produce visible rows.
+    try {
+      const params = new URLSearchParams(window.location.search || '');
+      const delayMs = parseInt(params.get('delayMs') || '', 10);
+      if (Number.isFinite(delayMs) && delayMs > 0) {
+        const img = document.getElementById('screenshotDelayImg');
+        if (img) img.src = `/__delay?ms=${delayMs}`;
+      }
+    } catch (_) { /* ignore */ }
+  }
+
   function boot() {
     ui.init();
     initFromStorage();
@@ -701,6 +802,7 @@
     state.feedPageSize = parseInt(e.feedPageSize.value, 10) || 25;
     state.reviewPageSize = parseInt(e.reviewPageSize.value, 10) || 10;
 
+    applyQueryParams();
     attachHandlers();
 
     // Expose minimal controller for UI click hooks.
@@ -716,7 +818,25 @@
     renderFeed({ incremental: false });
     renderReview();
 
-    pollHealthOnce().catch(() => {});
+    pollHealthOnce().then(() => {
+      const q = readQueryParams();
+      if (!q.autostart) return;
+
+      const startedAt = Date.now();
+      const attempt = async () => {
+        if (state.running) return;
+        if ((Date.now() - startedAt) > 12000) return;
+
+        await pollHealthOnce().catch(() => null);
+        if (state.connected && state.modelLoaded && state.expectedFeatures === 30) {
+          startStream();
+          return;
+        }
+        setTimeout(() => attempt().catch(() => {}), 250);
+      };
+
+      setTimeout(() => attempt().catch(() => {}), 200);
+    }).catch(() => {});
     setInterval(() => pollHealthOnce().catch(() => {}), HEALTH_POLL_MS);
     setButtons();
     setBanner('ready');

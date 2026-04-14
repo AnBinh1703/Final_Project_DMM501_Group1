@@ -30,8 +30,12 @@
           <div class="v mono" id="modelVersionText">-</div>
         </div>
         <div class="kv">
-          <div class="k">Threshold</div>
+          <div class="k">Thr (R/H)</div>
           <div class="v mono" id="thresholdText">-</div>
+        </div>
+        <div class="kv">
+          <div class="k">Score</div>
+          <div class="v mono" id="scoreSemanticsText" title="This demo returns an uncalibrated risk score (0..1), not a true fraud probability. Use thresholds/tiering for decisions.">-</div>
         </div>
         <div class="kv">
           <div class="k">Expected Features</div>
@@ -102,20 +106,20 @@
             <div class="kpi-value mono" id="kpiTotal">0</div>
           </div>
           <div class="kpi kpi-red">
-            <div class="kpi-label">Fraud Detected</div>
-            <div class="kpi-value mono" id="kpiFraud">0</div>
+            <div class="kpi-label">High Risk (Block)</div>
+            <div class="kpi-value mono" id="kpiHigh">0</div>
           </div>
           <div class="kpi kpi-orange">
-            <div class="kpi-label">Suspicious</div>
-            <div class="kpi-value mono" id="kpiSuspicious">0</div>
+            <div class="kpi-label">Review Queue</div>
+            <div class="kpi-value mono" id="kpiReview">0</div>
           </div>
           <div class="kpi">
-            <div class="kpi-label">Fraud Rate</div>
-            <div class="kpi-value mono" id="kpiFraudRate">0.00%</div>
+            <div class="kpi-label">Alert Rate</div>
+            <div class="kpi-value mono" id="kpiAlertRate">0.00%</div>
           </div>
           <div class="kpi">
-            <div class="kpi-label">Avg Probability</div>
-            <div class="kpi-value mono" id="kpiAvgProb">0.00%</div>
+            <div class="kpi-label">Avg Risk Score</div>
+            <div class="kpi-value mono" id="kpiAvgScore">0.00%</div>
           </div>
           <div class="kpi">
             <div class="kpi-label">Last API Latency</div>
@@ -127,7 +131,7 @@
       <section class="panel alerts">
         <div class="panel-header">
           <h2>Alert Panel</h2>
-          <div class="panel-meta">Recent high-risk items (Suspicious + Fraud)</div>
+          <div class="panel-meta">Recent high-risk items (Review + High)</div>
         </div>
         <div id="alertsList" class="alerts-list">
           <div class="empty muted" id="alertsEmpty">No alerts yet.</div>
@@ -136,9 +140,9 @@
 
       <section class="panel chart">
         <div class="panel-header">
-          <h2>Fraud Probability Over Time</h2>
+          <h2>Risk Score Over Time</h2>
           <div class="panel-meta mono">
-            last_prob=<span id="chartLastProb">-</span> • last_thr=<span id="chartLastThr">-</span>
+            last_score=<span id="chartLastProb">-</span> • thr_review/high=<span id="chartLastThr">-</span>
           </div>
         </div>
         <canvas id="probChart" width="1100" height="280" class="chart-canvas"></canvas>
@@ -175,10 +179,11 @@
                 <th>Timestamp</th>
                 <th>Request ID</th>
                 <th class="right">Amount</th>
-                <th class="right">Fraud Prob</th>
+                <th class="right">Risk Score</th>
                 <th>Risk</th>
-                <th class="center">Label</th>
-                <th class="right">Threshold</th>
+                <th class="center">Tier</th>
+                <th class="center">Action</th>
+                <th class="right">Thr (R/H)</th>
                 <th class="right">Latency</th>
                 <th>Status</th>
                 <th>Source</th>
@@ -186,7 +191,7 @@
             </thead>
             <tbody id="feedBody">
               <tr id="feedEmptyRow">
-                <td colspan="10" class="muted center">Stream not started.</td>
+                <td colspan="11" class="muted center">Stream not started.</td>
               </tr>
             </tbody>
           </table>
@@ -198,16 +203,16 @@
       <section class="panel control-panel">
         <div class="panel-header">
           <h2>Check &amp; Handle Queue</h2>
-          <div class="panel-meta">Review Suspicious/Fraud items, add notes, and mark handled (frontend-only).</div>
+          <div class="panel-meta">Handle Review/High items, add notes, and mark handled (frontend-only).</div>
         </div>
 
         <div class="controls-grid review-controls">
           <div class="control">
             <label>Risk Filter</label>
             <select id="reviewRiskFilter">
-              <option value="all" selected>All (Suspicious + Fraud)</option>
-              <option value="Suspicious">Suspicious</option>
-              <option value="Fraud">Fraud</option>
+              <option value="all" selected>All (Review + High)</option>
+              <option value="Review">Review</option>
+              <option value="High">High</option>
             </select>
           </div>
           <div class="control">
@@ -256,7 +261,7 @@
                   <th>Timestamp</th>
                   <th>Request ID</th>
                   <th class="right">Amount</th>
-                  <th class="right">Prob</th>
+                  <th class="right">Score</th>
                   <th>Risk</th>
                   <th>Handled</th>
                 </tr>
@@ -294,11 +299,11 @@
               <div class="v" id="caseRisk">-</div>
             </div>
             <div class="case-kv">
-              <div class="k">Fraud Probability</div>
+              <div class="k" title="Uncalibrated risk score (0..1). Use tiers/thresholds for decisions.">Risk Score</div>
               <div class="v mono" id="caseProb">-</div>
             </div>
             <div class="case-kv">
-              <div class="k">Threshold</div>
+              <div class="k">Thr (R/H)</div>
               <div class="v mono" id="caseThr">-</div>
             </div>
             <div class="case-kv">
@@ -338,6 +343,13 @@
         Tip: open API docs at <span class="mono">/docs</span> and metrics at <span class="mono">/metrics</span>
       </div>
     </footer>
+
+    <!--
+      Screenshot helper:
+      If app.js sets this image src to /__delay?ms=..., the browser load event is delayed,
+      allowing the autostart stream to generate visible rows before headless screenshot.
+    -->
+    <img id="screenshotDelayImg" alt="" style="display:none" />
 
     <script src="./api-client.js"></script>
     <script src="./demo-data.js"></script>

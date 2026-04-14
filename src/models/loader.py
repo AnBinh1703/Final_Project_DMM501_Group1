@@ -29,7 +29,19 @@ def load_model_from_path(model_path: str | Path, threshold: float | None, model_
     model: Any = joblib.load(path)
     metadata = _read_metadata(path)
 
-    resolved_threshold = float(threshold if threshold is not None else metadata.get("threshold", 0.5))
+    # Backward compatibility:
+    # - older artifacts use a single `threshold` (treated as `threshold_high`)
+    # - newer artifacts use `threshold_review` and `threshold_high`
+    resolved_threshold_high = float(
+        threshold if threshold is not None else metadata.get("threshold_high", metadata.get("threshold", 0.5))
+    )
+    resolved_threshold_review = float(metadata.get("threshold_review", min(0.5, resolved_threshold_high)))
+    if not (0.0 <= resolved_threshold_high <= 1.0):
+        resolved_threshold_high = 0.5
+    if not (0.0 <= resolved_threshold_review <= 1.0):
+        resolved_threshold_review = min(0.5, resolved_threshold_high)
+    if resolved_threshold_review > resolved_threshold_high:
+        resolved_threshold_review = min(0.5, resolved_threshold_high)
     resolved_version = str(
         model_version
         if model_version is not None
@@ -44,7 +56,8 @@ def load_model_from_path(model_path: str | Path, threshold: float | None, model_
 
     return LoadedModel(
         model=model,
-        threshold=resolved_threshold,
+        threshold_review=resolved_threshold_review,
+        threshold_high=resolved_threshold_high,
         model_version=resolved_version,
         n_features=int(n_features) if n_features is not None else None,
         feature_columns=list(metadata.get("feature_columns")) if isinstance(metadata.get("feature_columns"), list) else None,
@@ -53,6 +66,7 @@ def load_model_from_path(model_path: str | Path, threshold: float | None, model_
         selection_timestamp_utc=str(metadata.get("selection_timestamp_utc"))
         if metadata.get("selection_timestamp_utc") is not None
         else None,
+        score_semantics=str(metadata.get("score_semantics", "risk_score_uncalibrated")),
     )
 
 
@@ -66,13 +80,31 @@ def maybe_load_model_from_env() -> LoadedModel | None:
 
         env_threshold = os.getenv("FRAUD_THRESHOLD")
         threshold = float(env_threshold) if env_threshold is not None else None
+        env_review_threshold = os.getenv("REVIEW_THRESHOLD")
+        review_threshold = float(env_review_threshold) if env_review_threshold is not None else None
         model_version = os.getenv("MODEL_VERSION")
 
         path = Path(model_path)
         if not path.exists():
             return None
 
-        return load_model_from_path(path, threshold=threshold, model_version=model_version)
+        loaded = load_model_from_path(path, threshold=threshold, model_version=model_version)
+        if review_threshold is not None:
+            resolved_review = float(review_threshold)
+            if 0.0 <= resolved_review <= 1.0 and resolved_review <= loaded.threshold_high:
+                return LoadedModel(
+                    model=loaded.model,
+                    threshold_review=resolved_review,
+                    threshold_high=loaded.threshold_high,
+                    model_version=loaded.model_version,
+                    n_features=loaded.n_features,
+                    feature_columns=loaded.feature_columns,
+                    model_type=loaded.model_type,
+                    dataset_path=loaded.dataset_path,
+                    selection_timestamp_utc=loaded.selection_timestamp_utc,
+                    score_semantics=loaded.score_semantics,
+                )
+        return loaded
 
     # Otherwise: best-effort local default to the final training artifact.
     repo_root = Path(__file__).resolve().parents[2]

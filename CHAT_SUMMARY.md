@@ -656,7 +656,7 @@ Host: 127.0.0.1:8000
 {
   "prediction": "legitimate",
   "confidence": 0.92,
-  "fraud_probability": 0.08,
+  "risk_score": 0.08,
   "model_version": "lightgbm-production-v1",
   "threshold": 0.14,
   "processing_time_ms": 2.5
@@ -668,7 +668,7 @@ Host: 127.0.0.1:8000
 {
   "prediction": "fraud",
   "confidence": 0.87,
-  "fraud_probability": 0.87,
+  "risk_score": 0.87,
   "model_version": "lightgbm-production-v1",
   "threshold": 0.14,
   "processing_time_ms": 2.8,
@@ -2381,7 +2381,7 @@ Audit the current project against the final project requirements and grading rub
   │ feats=[0.0,-1.36,-0.07,2.54,1.38,-0.34,0.46,0.24,0.10,0.36,0.09,-0.55,-0.62,-0.99,-0.31,1.47,-0.47,0.21,0.03,0.40,0.25,-0.02,0.28,-0.11,0.07,0.13,-0.19,0.13,-0.02,149.62]; r=client.post('/predict', json={'features':feats});      
   │ … +1 lines
   └ health 200 {'status': 'ok', 'model_loaded': True, 'model_version': 'lightgbm-production-v1', 'expected_features': 30}
-    predict 200 {'request_id': 'b36c7672-41b7-4a76-b38c-d7dbf342d5c9', 'fraud_probability': 1.296716744551923e-07, 'fraud_label': 0, 'threshold': 0.14, 'model_version': 'lightgbm-production-v1'}
+    predict 200 {'request_id': 'b36c7672-41b7-4a76-b38c-d7dbf342d5c9', 'risk_score': 1.296716744551923e-07, 'fraud_label': 0, 'threshold_high': 0.14, 'model_version': 'lightgbm-production-v1'}
     metrics 200 True
     D:\MSE\12. AI in DevOps, DataOps, MLOps\Final_Project\.venv\Lib\site-packages\sklearn\utils\validation.py:2691: UserWarning: X does not have valid feature names, but LGBMClassifier was fitted with feature names
       warnings.warn(

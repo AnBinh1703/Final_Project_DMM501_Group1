@@ -41,7 +41,9 @@ def main():
         print(f"      ✓ Model Loaded: {health['model_loaded']}")
         print(f"      ✓ Model Version: {health['model_version']}")
         print(f"      ✓ Expected Features: {health['expected_features']}")
-        print(f"      ✓ Threshold: {health.get('threshold')}")
+        print(f"      ✓ Threshold Review: {health.get('threshold_review')}")
+        print(f"      ✓ Threshold High: {health.get('threshold_high')}")
+        print(f"      ✓ Score Semantics: {health.get('score_semantics')}")
     else:
         print(f"      ✗ API Unavailable: {status}")
         print("      Make sure to run: uvicorn src.api.main:app --host 0.0.0.0 --port 8000")
@@ -68,9 +70,10 @@ def main():
     if ok:
         result = json.loads(content)
         print(f"      ✓ Prediction Success (Status: {status})")
-        print(f"      ✓ Fraud Probability: {result['fraud_probability']:.6f}")
-        print(f"      ✓ Fraud Label: {result['fraud_label']}")
-        print(f"      ✓ Threshold: {result['threshold']}")
+        print(f"      ✓ Risk Score: {result['risk_score']:.6f}")
+        print(f"      ✓ Risk Tier: {result['risk_tier']} (action={result['action']})")
+        print(f"      ✓ Fraud Label (compat): {result['fraud_label']}")
+        print(f"      ✓ Thresholds (review/high): {result['threshold_review']} / {result['threshold_high']}")
         print(f"      ✓ Model Version: {result['model_version']}")
         print(f"      ✓ Model Type: {result.get('model_type')}")
     else:
@@ -85,8 +88,9 @@ def main():
     if ok:
         result = json.loads(content)
         print(f"      ✓ Prediction Success")
-        print(f"      ✓ Fraud Probability: {result['fraud_probability']:.6f}")
-        print(f"      ✓ Fraud Label: {result['fraud_label']}")
+        print(f"      ✓ Risk Score: {result['risk_score']:.6f}")
+        print(f"      ✓ Risk Tier: {result['risk_tier']} (action={result['action']})")
+        print(f"      ✓ Fraud Label (compat): {result['fraud_label']}")
     else:
         print(f"      ✗ Prediction Failed: {status}")
     

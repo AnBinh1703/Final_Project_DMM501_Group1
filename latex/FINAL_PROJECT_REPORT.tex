@@ -263,7 +263,7 @@ Additional demo-support endpoints exist: \code{GET /features/schema} and \code{G
   \item Stream loop: on Start, the UI repeatedly generates a transaction and calls \code{POST /predict} at an interval of 0.5s / 1s / 2s.
   \item Data sources:
     \begin{itemize}
-      \item Real sample stream: \code{frontend/real-samples.json} (pre-extracted rows from \code{data/archive/creditcard.csv}).
+      \item Real sample stream: dataset-backed sampling via \code{GET /dataset/samples} (production-like base rate, with rare fraud spikes for demo visibility).
       \item Random generated stream: synthetic feature vectors produced by \code{frontend/demo-data.js}.
     \end{itemize}
   \item Failure handling: stops stream after 4 consecutive errors (demo-friendly).
@@ -272,8 +272,8 @@ Additional demo-support endpoints exist: \code{GET /features/schema} and \code{G
 \subsubsection*{C3. Alert system and risk classification}
 Implemented in \code{frontend/app.js}:
 \begin{itemize}
-  \item Risk levels: \emph{Normal} if score \(< 0.05\); \emph{Fraud} if score \(\ge\) backend threshold; otherwise \emph{Suspicious}.
-  \item Alerts are created for \emph{Suspicious} and \emph{Fraud} rows and shown in the Alert Panel.
+  \item Risk tiers (policy-driven): \emph{LOW} if score \(< \) \code{threshold\_review}; \emph{REVIEW} if score is between \code{threshold\_review} and \code{threshold\_high}; \emph{HIGH} if score \( \ge \) \code{threshold\_high}.
+  \item Alerts/cases are created for \emph{REVIEW} and \emph{HIGH} items and shown in the Alert Panel / Review queue.
 \end{itemize}
 
 \subsection*{D. Monitoring}
@@ -286,8 +286,8 @@ Dashboard definition: \code{deployment/grafana/dashboards/fraud\_api.json}. Pane
 \begin{itemize}
   \item API Requests Per Second
   \item Request Latency (95th percentile)
-  \item Average Fraud Score
-  \item Fraud Predictions by Label
+  \item Average Risk Score
+  \item Decisions by Tier
 \end{itemize}
 
 \subsubsection*{D3. Alert rules}
@@ -351,7 +351,7 @@ The dataset contains anonymized PCA components (\code{V1..V28}) and does not inc
 
 \subsection*{5.4 Ethical risks and mitigations}
 \begin{itemize}
-  \item False positives: customer friction; mitigated via explicit threshold policy and a \emph{Suspicious} tier in the UI (human-in-the-loop workflow).
+  \item False positives: customer friction; mitigated via explicit threshold policy and a \emph{REVIEW} tier in the UI (human-in-the-loop workflow).
   \item False negatives: fraud loss; mitigated by tracking recall and documenting trade-offs.
   \item Over-trusting explanations: SHAP is not causal; documented limitations in \code{RESPONSIBLE\_AI.md}.
 \end{itemize}
@@ -363,18 +363,24 @@ The dataset contains anonymized PCA components (\code{V1..V28}) and does not inc
 \subsection*{6.1 Dashboard layout (actual UI)}
 From \code{frontend/index.html}:
 \begin{itemize}
-  \item Header: connection pill + model version + threshold + expected feature count.
+  \item Header: connection pill + model version + thresholds (review/high) + expected feature count.
   \item Control Panel: API Base URL, mode (real/random), speed, start/stop/reset.
-  \item Live Summary KPIs: total processed, fraud detected, suspicious, fraud rate, avg probability, last latency.
-  \item Alert Panel: recent \emph{Suspicious} and \emph{Fraud} items.
-  \item Chart: fraud probability over time with threshold overlay (canvas).
-  \item Feed: append-only table with timestamp, request id, amount, probability, risk, label, threshold, latency, source.
+  \item Live Summary KPIs: total processed, high risk (block), review queue, alert rate, avg risk score, last latency.
+  \item Alert Panel: recent \emph{REVIEW} and \emph{HIGH} items.
+  \item Chart: risk score over time with threshold overlays (review/high).
+  \item Feed: append-only table with timestamp, request id, amount, score, tier, action, thresholds, latency, source.
 \end{itemize}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.95\linewidth]{../artifacts/figures/frontend_dashboard_live.png}
+  \caption{Frontend dashboard screenshot (connected to backend). Source: \code{artifacts/figures/frontend_dashboard_live.png}.}
+\end{figure}
 
 \subsection*{6.2 Transaction monitoring and abnormal detection}
 \begin{itemize}
-  \item Every generated transaction triggers a backend \code{/predict} call; the UI uses the returned \code{fraud\_probability} as the primary signal.
-  \item Risk classification rule is implemented in \code{frontend/app.js} (Normal/Suspicious/Fraud).
+  \item Every generated transaction triggers a backend \code{/predict} call; the UI uses the returned \code{risk\_score} as the primary signal.
+  \item Risk tiering is policy-driven using backend thresholds (\code{threshold\_review}/\code{threshold\_high}) into LOW/REVIEW/HIGH.
   \item Alerts are UI-only (no external notification channel implemented).
 \end{itemize}
 
@@ -399,8 +405,8 @@ From \code{artifacts/reports/dataset\_schema.json}:
 \subsection*{7.2 Imbalance issue (\(\approx 0.17\%\) fraud)}
 From \code{artifacts/reports/class\_distribution.json}:
 \begin{itemize}
-  \item Non-fraud (0): 284{,}315 (\(\approx 99.8273\%\))
-  \item Fraud (1): 492 (\(\approx 0.1727\%\))
+  \item Non-fraud (0): 284{,}315 (ratio=0.9982725144; \(\approx 99.8273\%\))
+  \item Fraud (1): 492 (ratio=0.0017274856; \(\approx 0.1727\%\))
 \end{itemize}
 
 \subsection*{7.3 Why accuracy is misleading}
@@ -421,7 +427,7 @@ This system explicitly chooses and stores a threshold:
 \subsection*{7.5 How the dataset is used in training vs demo}
 \begin{itemize}
   \item \textbf{Training/benchmarking:} \code{src/pipelines/run\_model\_workflow.py} reads \code{data/archive/creditcard.csv} and generates all reports/figures/models.
-  \item \textbf{Demo streaming (frontend):} \code{frontend/real-samples.json} contains pre-extracted feature vectors (and optional \code{class\_label}) from the same dataset path for stable UI streaming.
+  \item \textbf{Demo streaming (frontend):} \code{frontend/real-samples.json} contains pre-extracted feature vectors (and optional \code{class\_label}) from the same dataset path for stable UI streaming (240 samples; 60 fraud-labeled).
   \item \textbf{Demo/verification (API):} \code{GET /dataset/samples} samples rows directly from the recorded dataset path in model metadata (useful for verification scripts such as \code{verify\_system.py}).
 \end{itemize}
 
@@ -461,7 +467,7 @@ CI/CD (GitHub Actions) & Unverified & Workflows exist in \code{.github/workflows
 \end{longtable}
 
 \subsection*{8.3 Consistency note (important)}
-The authoritative deployed threshold and selected model are taken from \code{artifacts/models/model\_info.json} (selection timestamp \code{2026-04-14T07:32:56.702794+00:00}). Some older/internal narrative documents in the repo may reference different model paths or thresholds; for demo correctness, follow the artifact metadata used by the API loader.
+The authoritative deployed threshold and selected model are taken from \code{artifacts/models/model\_info.json} (selection timestamp \code{2026-04-14T08:17:58.395658+00:00}). Some older/internal narrative documents in the repo may reference different model paths or thresholds; for demo correctness, follow the artifact metadata used by the API loader.
 
 % --------------------------------------------------
 \section*{SECTION 9 — Risks \& Limitations}
@@ -517,7 +523,7 @@ The authoritative deployed threshold and selected model are taken from \code{art
   \item \textbf{Model results (45s):} present tuned metrics table (PR-AUC, precision, recall, F1) and explain threshold trade-offs; emphasize PR-AUC for imbalance.
   \item \textbf{Serving API (60s):} demo \code{/health} then \code{/predict}; highlight validation (feature length, numeric checks) and metadata in responses.
   \item \textbf{Monitoring (45s):} open \code{/metrics}; explain what Prometheus scrapes and what Grafana shows; mention alert rules.
-  \item \textbf{Frontend demo (60–90s):} start stream; narrate KPIs, feed, alerts, and chart; explain Normal/Suspicious/Fraud mapping.
+  \item \textbf{Frontend demo (60–90s):} start stream; narrate KPIs, feed, alerts, and chart; explain LOW/REVIEW/HIGH policy with thresholds.
   \item \textbf{Responsible AI (30–45s):} explain SHAP usage and fairness/privacy limitations from \code{RESPONSIBLE\_AI.md}.
 \end{enumerate}
 
@@ -640,13 +646,13 @@ The authoritative deployed threshold and selected model are taken from \code{art
 
   \item \textbf{Show fraud detection and alerts}:
   \begin{itemize}
-    \item Point to \code{fraud\_probability} values updating in the feed.
-    \item Show Alert Panel entries for \emph{Suspicious} / \emph{Fraud}.
+    \item Point to \code{risk\_score} values updating in the feed.
+    \item Show Alert Panel entries for \emph{REVIEW} / \emph{HIGH}.
   \end{itemize}
 
   \item \textbf{Show chart}:
   \begin{itemize}
-    \item Point out the rolling probability chart and the threshold line (``last\_thr'').
+    \item Point out the rolling score chart and the threshold lines (review/high).
   \end{itemize}
 
   \item \textbf{Show monitoring quickly (optional)}:

@@ -89,7 +89,7 @@ The decision threshold is an explicit business choice:
 The training pipeline records the chosen threshold in `model_info.json` to avoid hidden policy changes.
 
 ### Human-in-the-loop (recommended operational pattern)
-- Use `fraud_probability` as a prioritization signal.
+- Use `risk_score` as a prioritization signal (uncalibrated; threshold/tiering defines actions).
 - Use tiered actions:
   - low risk: allow
   - medium: step-up authentication / review

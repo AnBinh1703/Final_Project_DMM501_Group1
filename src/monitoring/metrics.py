@@ -19,18 +19,24 @@ LATENCY_SECONDS = Histogram(
 
 PREDICTIONS_TOTAL = Counter(
     "fraud_predictions_total",
-    "Number of fraud predictions",
-    ["label"],
+    "Number of scored transactions by decision tier",
+    ["tier"],
+)
+
+ACTION_TOTAL = Counter(
+    "fraud_actions_total",
+    "Number of suggested actions from the scoring policy",
+    ["action"],
 )
 
 SCORES_SUM = Counter(
-    "fraud_scores_sum",
-    "Sum of fraud scores (for average computation)",
+    "risk_scores_sum",
+    "Sum of risk scores (for average computation)",
 )
 
 SCORES_COUNT = Counter(
-    "fraud_scores_count",
-    "Count of fraud scores (for average computation)",
+    "risk_scores_count",
+    "Count of risk scores (for average computation)",
 )
 
 
@@ -52,7 +58,8 @@ def record_response(endpoint: str, method: str, http_status: int) -> None:
     ).inc()
 
 
-def record_prediction(score: float, label: int) -> None:
-    PREDICTIONS_TOTAL.labels(label=str(int(label))).inc()
+def record_prediction(score: float, tier: str, action: str) -> None:
+    PREDICTIONS_TOTAL.labels(tier=str(tier)).inc()
+    ACTION_TOTAL.labels(action=str(action)).inc()
     SCORES_SUM.inc(score)
     SCORES_COUNT.inc(1)

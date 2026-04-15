@@ -2,11 +2,12 @@
 
 - Dataset: `data/archive/creditcard.csv`
 - Selected model (validation-only): **logistic_regression**
-- Thresholds (review/high): 0.70 / 0.99
+- Threshold policy: top-K rates (review/high) = 1.00% / 0.20%
+- Thresholds (review/high): 0.74 / 1.00
 
 ## Final Test Metrics
 
-- Review threshold (precision-constrained): precision=0.1268, recall=0.8514
-- High threshold (precision-constrained): precision=0.7024, recall=0.7973
+- Review operating point (top-K): precision=0.1462, recall=0.8514
+- High operating point (top-K): precision=0.8429, recall=0.7973
 - PR-AUC (test): 0.7694
 - ROC-AUC (test): 0.9652

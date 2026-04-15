@@ -54,6 +54,24 @@ def load_model_from_path(model_path: str | Path, threshold: float | None, model_
     if n_features is None and hasattr(model, "n_features_in_"):
         n_features = int(getattr(model, "n_features_in_"))
 
+    fraud_base_rate = metadata.get("fraud_base_rate")
+    try:
+        fraud_base_rate_f = float(fraud_base_rate) if fraud_base_rate is not None else None
+    except (TypeError, ValueError):
+        fraud_base_rate_f = None
+    if fraud_base_rate_f is not None and not (0.0 <= fraud_base_rate_f <= 1.0):
+        fraud_base_rate_f = None
+
+    threshold_policy = metadata.get("threshold_policy") if isinstance(metadata.get("threshold_policy"), dict) else None
+
+    score_percentiles_raw = metadata.get("score_percentiles")
+    score_percentiles: list[float] | None = None
+    if isinstance(score_percentiles_raw, list) and score_percentiles_raw:
+        try:
+            score_percentiles = [float(x) for x in score_percentiles_raw]
+        except (TypeError, ValueError):
+            score_percentiles = None
+
     return LoadedModel(
         model=model,
         threshold_review=resolved_threshold_review,
@@ -63,10 +81,13 @@ def load_model_from_path(model_path: str | Path, threshold: float | None, model_
         feature_columns=list(metadata.get("feature_columns")) if isinstance(metadata.get("feature_columns"), list) else None,
         model_type=str(metadata.get("model_type")) if metadata.get("model_type") is not None else None,
         dataset_path=str(metadata.get("dataset_path")) if metadata.get("dataset_path") is not None else None,
+        fraud_base_rate=fraud_base_rate_f,
         selection_timestamp_utc=str(metadata.get("selection_timestamp_utc"))
         if metadata.get("selection_timestamp_utc") is not None
         else None,
         score_semantics=str(metadata.get("score_semantics", "risk_score_uncalibrated")),
+        threshold_policy=threshold_policy,
+        score_percentiles=score_percentiles,
     )
 
 
@@ -101,8 +122,11 @@ def maybe_load_model_from_env() -> LoadedModel | None:
                     feature_columns=loaded.feature_columns,
                     model_type=loaded.model_type,
                     dataset_path=loaded.dataset_path,
+                    fraud_base_rate=loaded.fraud_base_rate,
                     selection_timestamp_utc=loaded.selection_timestamp_utc,
                     score_semantics=loaded.score_semantics,
+                    threshold_policy=loaded.threshold_policy,
+                    score_percentiles=loaded.score_percentiles,
                 )
         return loaded
 

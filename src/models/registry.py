@@ -13,5 +13,8 @@ class LoadedModel:
     feature_columns: list[str] | None = None
     model_type: str | None = None
     dataset_path: str | None = None
+    fraud_base_rate: float | None = None
     selection_timestamp_utc: str | None = None
     score_semantics: str = "risk_score_uncalibrated"
+    threshold_policy: dict | None = None
+    score_percentiles: list[float] | None = None

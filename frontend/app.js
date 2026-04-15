@@ -112,10 +112,6 @@
     consecutiveErrors: 0,
     streamAbort: null,
 
-    // Streaming realism controls (client-side)
-    spikeRemaining: 0,
-    seed: 42,
-
     // Data stores (newest-first)
     nextId: 1,
     feedItems: [],
@@ -337,7 +333,7 @@
     else renderReview();
   }
 
-  function recordPrediction({ result, tx, timestamp }) {
+  function recordApiPrediction({ result, tx, timestamp }) {
     state.lastLatencyMs = result._latencyMs;
     state.thresholdReview = result.threshold_review;
     state.thresholdHigh = result.threshold_high;
@@ -356,9 +352,9 @@
       requestId: result.request_id,
       amount: tx.amount,
       riskScore: score,
+      riskPercentile: null,
       riskTier: tier,
       action,
-      fraudLabel: result.fraud_label,
       thresholdReview: result.threshold_review,
       thresholdHigh: result.threshold_high,
       riskLevel: riskLabel,
@@ -397,6 +393,7 @@
         id: entry.id,
         requestId: entry.requestId,
         riskScore: entry.riskScore,
+        riskPercentile: entry.riskPercentile,
         amount: entry.amount,
         riskLevel: entry.riskLevel,
         riskTier: entry.riskTier,
@@ -418,6 +415,81 @@
     refreshHeader();
   }
 
+  function recordStreamEvent({ batch, event, pullLatencyMs }) {
+    state.lastLatencyMs = pullLatencyMs;
+    state.thresholdReview = batch.threshold_review;
+    state.thresholdHigh = batch.threshold_high;
+    state.scoreSemantics = batch.score_semantics || state.scoreSemantics;
+    state.modelVersion = batch.model_version || state.modelVersion;
+
+    const score = event.risk_score;
+    const tier = event.risk_tier;
+    const riskLabel = tierToUiLabel(tier);
+    const action = event.action || tierToAction(tier);
+
+    const id = state.nextId++;
+    const entry = {
+      id,
+      timestamp: event.event_time_utc,
+      requestId: `stream:${event.event_id}`,
+      amount: (typeof event.amount === 'number') ? event.amount : null,
+      riskScore: score,
+      riskPercentile: (typeof event.risk_percentile === 'number') ? event.risk_percentile : null,
+      riskTier: tier,
+      action,
+      thresholdReview: batch.threshold_review,
+      thresholdHigh: batch.threshold_high,
+      riskLevel: riskLabel,
+      latencyMs: pullLatencyMs,
+      status: 'OK',
+      source: event.source || 'stream',
+      features: event.features,
+
+      handled: false,
+      note: '',
+      noteSavedAt: null,
+    };
+
+    addFeedItem(entry);
+
+    if (state.activeView === 'dashboard' && state.feedPage === 1) {
+      ui.prependFeedRow(entry, { maxRows: state.feedPageSize, selectedId: state.feedSelectedId });
+      ui.setFeedPager({
+        page: 1,
+        totalPages: Math.max(1, Math.ceil(state.feedItems.length / state.feedPageSize)),
+        totalItems: state.feedItems.length,
+      });
+    } else if (state.activeView === 'dashboard') {
+      ui.setFeedPager({
+        page: state.feedPage,
+        totalPages: Math.max(1, Math.ceil(state.feedItems.length / state.feedPageSize)),
+        totalItems: state.feedItems.length,
+      });
+    }
+
+    if (tier !== 'LOW') {
+      addCaseItem(entry);
+      ui.prependAlert({
+        id: entry.id,
+        requestId: entry.requestId,
+        riskScore: entry.riskScore,
+        riskPercentile: entry.riskPercentile,
+        amount: entry.amount,
+        riskLevel: entry.riskLevel,
+        riskTier: entry.riskTier,
+        action: entry.action,
+        timestamp: entry.timestamp,
+      });
+
+      if (state.activeView === 'review') renderReview();
+    }
+
+    pushChartPoint(score);
+    recomputeKPIsFromFeed();
+    updateKPIs();
+    refreshHeader();
+  }
+
   function recordError({ message, tx, timestamp, latencyMs }) {
     const id = state.nextId++;
     const entry = {
@@ -426,7 +498,7 @@
       requestId: '-',
       amount: tx && typeof tx.amount === 'number' ? tx.amount : null,
       riskScore: null,
-      fraudLabel: null,
+      riskPercentile: null,
       thresholdReview: state.thresholdReview != null ? state.thresholdReview : 0,
       thresholdHigh: state.thresholdHigh != null ? state.thresholdHigh : 0,
       riskTier: '-',
@@ -454,65 +526,50 @@
     ui.showError(message);
   }
 
-  async function getNextTransaction() {
-    if (state.mode === 'real') {
-      // Production-like sampling:
-      // - default: dataset-backed sampling at the real base rate (~0.17% fraud)
-      // - occasional short fraud "spikes" for demo visibility (does not claim to be a perfect simulator)
-      const SPIKE_START_PROB = 0.00008; // ~1 spike every ~3.5 hours at 1 txn/sec
-      const SPIKE_MIN = 4;
-      const SPIKE_MAX = 9;
-
-      if (state.spikeRemaining <= 0 && Math.random() < SPIKE_START_PROB) {
-        state.spikeRemaining = SPIKE_MIN + Math.floor(Math.random() * (SPIKE_MAX - SPIKE_MIN + 1));
-      }
-
-      const strategy = state.spikeRemaining > 0 ? 'fraud' : 'production';
-      if (state.spikeRemaining > 0) state.spikeRemaining -= 1;
-
-      const body = await api.getDatasetSamples({ n: 1, strategy, seed: state.seed });
-      state.seed += 1;
-      const s = body.samples && body.samples[0] ? body.samples[0] : null;
-      if (!s || !Array.isArray(s.features)) throw new Error('Dataset sample missing features.');
-      return {
-        source: strategy === 'fraud' ? 'fraud-spike' : 'dataset',
-        features: s.features.map(Number),
-        time_s: (typeof s.time_s === 'number') ? s.time_s : s.features[0],
-        amount: (typeof s.amount === 'number') ? s.amount : s.features[29],
-        groundTruth: (typeof s.class_label === 'number') ? s.class_label : null,
-      };
-    }
+  function getNextRandomTransaction() {
     return DemoData.generateRandomTransaction();
   }
 
   async function streamLoop(signal) {
-    setBanner(`stream=running • mode=${state.mode} • every=${state.intervalMs}ms`);
-    ui.setRunStateText(`stream=running • mode=${state.mode} • interval=${state.intervalMs}ms`);
+    const modeLabel = state.mode === 'real' ? 'real(api-scored)' : state.mode;
+    setBanner(`stream=running • mode=${modeLabel} • every=${state.intervalMs}ms`);
+    ui.setRunStateText(`stream=running • mode=${modeLabel} • interval=${state.intervalMs}ms`);
 
     while (!signal.aborted && state.running) {
-      const now = new Date();
-      const timestamp = DashboardUIUtil.formatIsoTime(now);
       let tx = null;
 
       try {
-        tx = await getNextTransaction();
-        if (!tx || !Array.isArray(tx.features) || tx.features.length !== 30) {
-          throw new Error('Transaction generator produced invalid features (expected 30).');
-        }
-        if (tx.features.some(v => typeof v !== 'number' || !Number.isFinite(v))) {
-          throw new Error('Transaction generator produced non-finite numeric values.');
-        }
+        if (state.mode === 'real') {
+          const batch = await api.pullStream({ paceMs: state.intervalMs, maxEvents: 75 });
+          state.consecutiveErrors = 0;
+          ui.clearError();
+          for (const ev of batch.events || []) {
+            recordStreamEvent({ batch, event: ev, pullLatencyMs: batch._latencyMs });
+          }
+        } else {
+          const now = new Date();
+          const timestamp = DashboardUIUtil.formatIsoTime(now);
+          tx = getNextRandomTransaction();
+          if (!tx || !Array.isArray(tx.features) || tx.features.length !== 30) {
+            throw new Error('Transaction generator produced invalid features (expected 30).');
+          }
+          if (tx.features.some(v => typeof v !== 'number' || !Number.isFinite(v))) {
+            throw new Error('Transaction generator produced non-finite numeric values.');
+          }
 
-        const result = await api.predictTransaction(tx.features);
-        state.consecutiveErrors = 0;
-        ui.clearError();
-        recordPrediction({ result, tx, timestamp });
+          const result = await api.predictTransaction(tx.features);
+          state.consecutiveErrors = 0;
+          ui.clearError();
+          recordApiPrediction({ result, tx, timestamp });
+        }
       } catch (err) {
         if (signal.aborted || !state.running) break;
         state.consecutiveErrors += 1;
 
         const message = err && err.message ? err.message : String(err);
         const latency = (err && typeof err._latencyMs === 'number') ? err._latencyMs : null;
+        const now = new Date();
+        const timestamp = DashboardUIUtil.formatIsoTime(now);
         recordError({ message, tx, timestamp, latencyMs: latency });
 
         if (state.consecutiveErrors >= 4) {
@@ -544,7 +601,6 @@
 
     state.running = true;
     state.consecutiveErrors = 0;
-    state.spikeRemaining = 0;
     ui.clearError();
     setButtons();
 
@@ -573,7 +629,6 @@
     state.lastLatencyMs = null;
     state.chartPoints = [];
     state.consecutiveErrors = 0;
-    state.spikeRemaining = 0;
 
     state.feedItems = [];
     state.caseItems = [];
@@ -717,7 +772,7 @@
 
       try {
         const result = await api.predictTransaction(c.features);
-        recordPrediction({ result, tx, timestamp });
+        recordApiPrediction({ result, tx, timestamp });
         if (ui.el.caseNoteSavedText) ui.el.caseNoteSavedText.textContent = 'rescored';
       } catch (err) {
         ui.showError(err && err.message ? err.message : String(err));

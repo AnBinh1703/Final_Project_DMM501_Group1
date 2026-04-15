@@ -118,7 +118,7 @@
             <div class="kpi-value mono" id="kpiAlertRate">0.00%</div>
           </div>
           <div class="kpi">
-            <div class="kpi-label">Avg Risk Score</div>
+            <div class="kpi-label" title="Average uncalibrated risk score over the visible feed (relative ranking, not a probability).">Avg Risk Score (uncal.)</div>
             <div class="kpi-value mono" id="kpiAvgScore">0.00%</div>
           </div>
           <div class="kpi">
@@ -179,7 +179,7 @@
                 <th>Timestamp</th>
                 <th>Request ID</th>
                 <th class="right">Amount</th>
-                <th class="right">Risk Score</th>
+                <th class="right" title="Risk Score (uncalibrated, relative ranking). Not a probability. Optional pXX tag shows percentile under a reference distribution.">Risk Score (uncal.)</th>
                 <th>Risk</th>
                 <th class="center">Tier</th>
                 <th class="center">Action</th>
@@ -299,7 +299,7 @@
               <div class="v" id="caseRisk">-</div>
             </div>
             <div class="case-kv">
-              <div class="k" title="Uncalibrated risk score (0..1). Use tiers/thresholds for decisions.">Risk Score</div>
+              <div class="k" title="Risk Score (uncalibrated, relative ranking). Not a probability. Use tiers/thresholds for decisions; pXX tag is percentile under a reference distribution.">Risk Score (uncalibrated, relative ranking)</div>
               <div class="v mono" id="caseProb">-</div>
             </div>
             <div class="case-kv">

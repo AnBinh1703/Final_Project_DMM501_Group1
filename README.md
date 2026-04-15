@@ -30,7 +30,7 @@ Card and payment fraud causes direct financial loss and operational cost. A frau
 - **Compliance/Audit**: needs explainability artifacts and documented limitations
 
 ### Primary use cases
-1. Score a single transaction in milliseconds (API call) and return fraud probability + label.
+1. Score a single transaction in milliseconds (API call) and return an **uncalibrated risk score** plus a **decision** (tier + action), not confirmed fraud.
 2. Monitor service health/latency/error-rate and the fraud score distribution.
 3. Re-train and version the model; deploy a new artifact with defined review/high thresholds.
 
@@ -62,7 +62,7 @@ These are demo-grade targets aligned to imbalanced fraud detection.
 
 ### Business metrics
 - **PR-AUC (proxy for review efficiency)**: target >= 0.75 on held-out test set (dataset-dependent)
-- **Precision at operating threshold**: target >= 0.10 (controls false positives for review queue)
+- **Decision policy (capacity-driven)**: thresholds selected via a **top-K review-rate** policy (e.g., review top 1%, block top 0.2%); report precision/recall at those operating points.
 
 ### System metrics
 - **p95 latency** (`api_request_latency_seconds`): target <= 0.5 seconds

@@ -14,7 +14,7 @@ def test_dataset_samples_200_and_shape(monkeypatch) -> None:
 
     async def run() -> None:
         async with LifespanManager(app):
-            r = await asgi_request(app, method="GET", url="/dataset/samples?n=4&strategy=mixed&seed=7")
+            r = await asgi_request(app, method="GET", url="/dataset/samples?n=4&strategy=production&seed=7")
             assert r.status_code == 200
             body = r.json()
             assert body["n_features"] == 30
@@ -24,7 +24,34 @@ def test_dataset_samples_200_and_shape(monkeypatch) -> None:
             assert len(body["samples"]) >= 1
             for s in body["samples"]:
                 assert len(s["features"]) == 30
-                assert s["class_label"] in (0, 1)
+                assert "class_label" not in s
 
     asyncio.run(run())
 
+
+def test_internal_dataset_samples_requires_token_and_includes_label(monkeypatch) -> None:
+    model_path = Path("artifacts/models/final_model.joblib")
+    assert model_path.exists()
+    monkeypatch.setenv("MODEL_PATH", str(model_path))
+    monkeypatch.setenv("INTERNAL_EVAL_TOKEN", "test-token")
+
+    async def run() -> None:
+        async with LifespanManager(app):
+            r0 = await asgi_request(app, method="GET", url="/internal/dataset/samples?n=2&strategy=production&seed=3")
+            assert r0.status_code in (401, 404)
+
+            r = await asgi_request(
+                app,
+                method="GET",
+                url="/internal/dataset/samples?n=2&strategy=production&seed=3",
+                headers={"x-internal-token": "test-token"},
+            )
+            assert r.status_code == 200
+            body = r.json()
+            assert isinstance(body["samples"], list)
+            assert len(body["samples"]) >= 1
+            for s in body["samples"]:
+                assert len(s["features"]) == 30
+                assert s["class_label"] in (0, 1)
+
+    asyncio.run(run())

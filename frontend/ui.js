@@ -12,9 +12,24 @@
     return `${s.slice(0, 8)}…${s.slice(-4)}`;
   }
 
-  function pct(x) {
+  function score01(x, digits = 6) {
     if (typeof x !== 'number' || !Number.isFinite(x)) return '-';
-    return `${(x * 100).toFixed(2)}%`;
+    const d = Math.max(2, Math.min(10, parseInt(digits, 10) || 6));
+    return x.toFixed(d);
+  }
+
+  function percentileTag(p) {
+    if (typeof p !== 'number' || !Number.isFinite(p)) return '';
+    const v = Math.max(0, Math.min(100, p));
+    if (Math.abs(v - Math.round(v)) < 1e-9) return `p${Math.round(v)}`;
+    return `p${v.toFixed(1)}`;
+  }
+
+  function riskText(score, percentile) {
+    const s = score01(score, 6);
+    if (s === '-') return '-';
+    const tag = percentileTag(percentile);
+    return tag ? `${s} (${tag})` : s;
   }
 
   function money(x) {
@@ -187,7 +202,7 @@
       const alertRate = total > 0 ? ((high + review) / total) : 0;
       if (this.el.kpiAlertRate) this.el.kpiAlertRate.textContent = `${(alertRate * 100).toFixed(2)}%`;
 
-      if (this.el.kpiAvgScore) this.el.kpiAvgScore.textContent = pct(avgRiskScore);
+      if (this.el.kpiAvgScore) this.el.kpiAvgScore.textContent = score01(avgRiskScore, 6);
       if (this.el.kpiLastLatency) {
         this.el.kpiLastLatency.textContent = (typeof lastLatencyMs === 'number' && Number.isFinite(lastLatencyMs))
           ? `${lastLatencyMs.toFixed(0)} ms`
@@ -239,7 +254,7 @@
       tr.appendChild(td(entry.timestamp, 'mono'));
       tr.appendChild(td(shortId(entry.requestId), 'mono'));
       tr.appendChild(td(money(entry.amount), 'right mono'));
-      tr.appendChild(td(entry.status === 'OK' ? pct(entry.riskScore) : '-', 'right mono'));
+      tr.appendChild(td(entry.status === 'OK' ? riskText(entry.riskScore, entry.riskPercentile) : '-', 'right mono'));
 
       const riskTd = document.createElement('td');
       const riskBadge = document.createElement('span');
@@ -337,7 +352,7 @@
 
       const prob = document.createElement('div');
       prob.className = 'mono right';
-      prob.textContent = pct(alert.riskScore);
+      prob.textContent = riskText(alert.riskScore, alert.riskPercentile);
 
       const risk = document.createElement('div');
       const badge = document.createElement('span');
@@ -443,7 +458,7 @@
         tr.appendChild(td(c.timestamp, 'mono'));
         tr.appendChild(td(shortId(c.requestId), 'mono'));
         tr.appendChild(td(money(c.amount), 'right mono'));
-        tr.appendChild(td(pct(c.riskScore), 'right mono'));
+        tr.appendChild(td(riskText(c.riskScore, c.riskPercentile), 'right mono'));
 
         const riskTd = document.createElement('td');
         const badge = document.createElement('span');
@@ -479,7 +494,7 @@
       this.el.caseRisk.innerHTML = '';
       this.el.caseRisk.appendChild(badge);
 
-      this.el.caseProb.textContent = pct(caseObj.riskScore);
+      this.el.caseProb.textContent = riskText(caseObj.riskScore, caseObj.riskPercentile);
       this.el.caseThr.textContent = (typeof caseObj.thresholdReview === 'number' && typeof caseObj.thresholdHigh === 'number')
         ? `${caseObj.thresholdReview.toFixed(4)} / ${caseObj.thresholdHigh.toFixed(4)}`
         : '-';
@@ -572,7 +587,7 @@
       ctx.arc(lx, ly, 3, 0, Math.PI * 2);
       ctx.fill();
 
-      if (this.el.chartLastProb) this.el.chartLastProb.textContent = pct(last);
+      if (this.el.chartLastProb) this.el.chartLastProb.textContent = score01(last, 6);
     }
   }
 

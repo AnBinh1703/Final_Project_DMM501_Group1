@@ -16,7 +16,6 @@
   ];
 
   let _realSamples = null;
-  let _loadPromise = null;
 
   let realIndex = 0;
   let randomTimeCursor = 0;
@@ -28,41 +27,8 @@
 
   async function ensureRealSamplesLoaded() {
     if (Array.isArray(_realSamples) && _realSamples.length > 0) return _realSamples;
-    if (_loadPromise) return _loadPromise;
-
-    _loadPromise = (async () => {
-      try {
-        const resp = await fetch('./real-samples.json', { cache: 'no-store' });
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        const body = await resp.json();
-        const samples = body && Array.isArray(body.samples) ? body.samples : null;
-        const nFeatures = body && typeof body.n_features === 'number' ? body.n_features : null;
-        if (!samples || nFeatures !== 30) throw new Error('Invalid real-samples.json shape.');
-
-        const cleaned = samples
-          .map(s => ({
-            features: Array.isArray(s.features) ? s.features.map(Number) : null,
-            amount: (typeof s.amount === 'number') ? s.amount : null,
-            time_s: (typeof s.time_s === 'number') ? s.time_s : null,
-          }))
-          .filter(s => Array.isArray(s.features) && s.features.length === 30 && s.features.every(Number.isFinite))
-          .map(s => ({
-            features: s.features,
-            amount: (typeof s.amount === 'number') ? s.amount : s.features[29],
-            time_s: (typeof s.time_s === 'number') ? s.time_s : s.features[0],
-          }));
-
-        _realSamples = cleaned.length ? cleaned : INLINE_REAL_SAMPLES.map(s => ({ features: s.features, amount: s.features[29], time_s: s.features[0] }));
-        return _realSamples;
-      } catch (_) {
-        _realSamples = INLINE_REAL_SAMPLES.map(s => ({ features: s.features, amount: s.features[29], time_s: s.features[0] }));
-        return _realSamples;
-      } finally {
-        if (!Array.isArray(_realSamples) || _realSamples.length === 0) _loadPromise = null;
-      }
-    })();
-
-    return _loadPromise;
+    _realSamples = INLINE_REAL_SAMPLES.map(s => ({ features: s.features, amount: s.features[29], time_s: s.features[0] }));
+    return _realSamples;
   }
 
   async function getNextRealTransaction() {

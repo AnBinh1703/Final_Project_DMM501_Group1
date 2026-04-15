@@ -86,6 +86,30 @@ def _best_threshold_from_precision(threshold_df: pd.DataFrame, *, min_precision:
     df2 = threshold_df.sort_values(by=["precision", "threshold"], ascending=[False, True])
     return float(df2.iloc[0]["threshold"])
 
+
+def _threshold_from_topk_rate(y_score: np.ndarray, *, top_rate: float) -> float:
+    """
+    Business-driven threshold selection based on review capacity:
+    choose a threshold that flags approximately the top-K fraction by score.
+
+    Note: ties at the threshold can result in slightly more than top_rate being flagged.
+    """
+    r = float(top_rate)
+    if not (0.0 < r < 1.0):
+        raise ValueError("top_rate must be in (0,1)")
+    n = int(len(y_score))
+    if n < 1:
+        raise ValueError("y_score must be non-empty")
+    k = max(1, int(np.ceil(r * n)))
+    scores_desc = np.sort(np.asarray(y_score, dtype=float))[::-1]
+    return float(scores_desc[min(k - 1, n - 1)])
+
+
+def _compute_score_percentiles(y_score: np.ndarray) -> list[float]:
+    scores = np.asarray(y_score, dtype=float)
+    return [float(np.quantile(scores, p / 100.0)) for p in range(0, 101)]
+
+
 def _plot_confusion_matrix(cm: np.ndarray, title: str, out_path: Path) -> None:
     fig, ax = plt.subplots(figsize=(5, 4))
     im = ax.imshow(cm, cmap="Blues")
@@ -192,8 +216,8 @@ def run_workflow(
     data_path: str,
     artifacts_root: str,
     random_seed: int = 42,
-    review_min_precision: float = 0.1,
-    high_min_precision: float = 0.8,
+    review_top_rate: float = 0.01,
+    high_top_rate: float = 0.002,
 ) -> dict:
     root = Path(artifacts_root)
     reports_dir = root / "reports"
@@ -207,6 +231,11 @@ def run_workflow(
     dataset_path = Path(data_path)
     if not dataset_path.exists():
         raise FileNotFoundError(f"Dataset path not found: {dataset_path}")
+
+    review_top_rate = float(review_top_rate)
+    high_top_rate = float(high_top_rate)
+    if not (0.0 < high_top_rate <= review_top_rate < 1.0):
+        raise ValueError("Expected 0 < high_top_rate <= review_top_rate < 1")
 
     df = pd.read_csv(dataset_path)
 
@@ -372,8 +401,8 @@ def run_workflow(
     baseline_val_scores = baseline_pipeline.predict_proba(X_val)[:, 1]
 
     baseline_threshold_df = _threshold_sweep(y_val, baseline_val_scores, model_name="logistic_regression")
-    baseline_threshold_review = _best_threshold_from_precision(baseline_threshold_df, min_precision=review_min_precision)
-    baseline_threshold_high = _best_threshold_from_precision(baseline_threshold_df, min_precision=high_min_precision)
+    baseline_threshold_review = _threshold_from_topk_rate(baseline_val_scores, top_rate=review_top_rate)
+    baseline_threshold_high = _threshold_from_topk_rate(baseline_val_scores, top_rate=high_top_rate)
     baseline_threshold_review = float(min(baseline_threshold_review, baseline_threshold_high))
 
     baseline_default_val = _evaluate(y_val, baseline_val_scores, threshold=0.5)
@@ -382,8 +411,8 @@ def run_workflow(
 
     baseline_metrics_df = pd.DataFrame([
         {"model": "logistic_regression", "split": "val", "setting": "default_0.5", **baseline_default_val},
-        {"model": "logistic_regression", "split": "val", "setting": f"review_p>={review_min_precision:.2f}", **baseline_review_val},
-        {"model": "logistic_regression", "split": "val", "setting": f"high_p>={high_min_precision:.2f}", **baseline_high_val},
+        {"model": "logistic_regression", "split": "val", "setting": f"review_top{review_top_rate*100:.2f}pct", **baseline_review_val},
+        {"model": "logistic_regression", "split": "val", "setting": f"high_top{high_top_rate*100:.2f}pct", **baseline_high_val},
     ])
     baseline_metrics_df.to_csv(benchmarks_dir / "baseline_metrics_table.csv", index=False)
     baseline_threshold_df.to_csv(benchmarks_dir / "baseline_threshold_tuning.csv", index=False)
@@ -487,8 +516,8 @@ def run_workflow(
     improved_val_scores = best_model.predict_proba(X_val)[:, 1]
 
     improved_threshold_df = _threshold_sweep(y_val, improved_val_scores, model_name="lightgbm")
-    improved_threshold_review = _best_threshold_from_precision(improved_threshold_df, min_precision=review_min_precision)
-    improved_threshold_high = _best_threshold_from_precision(improved_threshold_df, min_precision=high_min_precision)
+    improved_threshold_review = _threshold_from_topk_rate(improved_val_scores, top_rate=review_top_rate)
+    improved_threshold_high = _threshold_from_topk_rate(improved_val_scores, top_rate=high_top_rate)
     improved_threshold_review = float(min(improved_threshold_review, improved_threshold_high))
 
     improved_default_val = _evaluate(y_val, improved_val_scores, threshold=0.5)
@@ -497,8 +526,8 @@ def run_workflow(
 
     improved_metrics_df = pd.DataFrame([
         {"model": "lightgbm", "split": "val", "setting": "default_0.5", **improved_default_val},
-        {"model": "lightgbm", "split": "val", "setting": f"review_p>={review_min_precision:.2f}", **improved_review_val},
-        {"model": "lightgbm", "split": "val", "setting": f"high_p>={high_min_precision:.2f}", **improved_high_val},
+        {"model": "lightgbm", "split": "val", "setting": f"review_top{review_top_rate*100:.2f}pct", **improved_review_val},
+        {"model": "lightgbm", "split": "val", "setting": f"high_top{high_top_rate*100:.2f}pct", **improved_high_val},
     ])
     improved_metrics_df.to_csv(benchmarks_dir / "improved_metrics_table.csv", index=False)
     improved_threshold_df.to_csv(benchmarks_dir / "improved_threshold_tuning.csv", index=False)
@@ -640,9 +669,13 @@ def run_workflow(
     selection_summary = {
         "selected_model": selected_model,
         "selection_timestamp_utc": selection_timestamp,
-        "selection_basis": "Validation-only selection. Primary=Val PR-AUC; tie-break=Recall at REVIEW threshold under precision constraint.",
-        "review_min_precision": float(review_min_precision),
-        "high_min_precision": float(high_min_precision),
+        "selection_basis": "Validation-only selection. Primary=Val PR-AUC; tie-break=Recall at REVIEW operating point under a top-K review-rate policy.",
+        "threshold_policy": {
+            "type": "top_k_rate",
+            "review_top_rate": float(review_top_rate),
+            "high_top_rate": float(high_top_rate),
+            "notes": "Thresholds are chosen to match business review capacity (flag the top-scoring fraction). Risk scores are uncalibrated.",
+        },
         "baseline": {
             "val_pr_auc": baseline_val_pr_auc,
             "threshold_review": float(baseline_threshold_review),
@@ -776,15 +809,27 @@ def run_workflow(
     validation_checks["feature_count_matches"] = bool(sample_X.shape[1] == len(feature_cols))
     _save_json(reports_dir / "model_validation_checks.json", validation_checks)
 
+    # Reference score distribution for UI percentile display (uncalibrated ranking aid).
+    selected_val_scores = improved_val_scores if selected_model == "lightgbm" else baseline_val_scores
+    score_percentiles = _compute_score_percentiles(np.asarray(selected_val_scores, dtype=float))
+
     model_info = {
         "model_type": final_model_type,
         "selected_model": selected_model,
         "dataset_path": str(dataset_path),
+        "fraud_base_rate": float((df["Class"] == 1).mean()),
         "feature_columns": feature_cols,
         "n_features": int(len(feature_cols)),
         "threshold_review": float(final_threshold_review),
         "threshold_high": float(final_threshold_high),
+        "threshold_policy": {
+            "type": "top_k_rate",
+            "review_top_rate": float(review_top_rate),
+            "high_top_rate": float(high_top_rate),
+            "notes": "Capacity-driven thresholds (top-K). Scores are uncalibrated and should be treated as relative ranking.",
+        },
         "score_semantics": "risk_score_uncalibrated",
+        "score_percentiles": score_percentiles,
         "metrics": {
             "val": {
                 "baseline_pr_auc": baseline_val_pr_auc,
@@ -801,10 +846,11 @@ def run_workflow(
         "# Model Benchmark Summary\n\n"
         f"- Dataset: `{dataset_path}`\n"
         f"- Selected model (validation-only): **{selected_model}**\n"
+        f"- Threshold policy: top-K rates (review/high) = {review_top_rate*100:.2f}% / {high_top_rate*100:.2f}%\n"
         f"- Thresholds (review/high): {final_threshold_review:.2f} / {final_threshold_high:.2f}\n\n"
         "## Final Test Metrics\n\n"
-        f"- Review threshold (precision-constrained): precision={final_test_review['precision']:.4f}, recall={final_test_review['recall']:.4f}\n"
-        f"- High threshold (precision-constrained): precision={final_test_high['precision']:.4f}, recall={final_test_high['recall']:.4f}\n"
+        f"- Review operating point (top-K): precision={final_test_review['precision']:.4f}, recall={final_test_review['recall']:.4f}\n"
+        f"- High operating point (top-K): precision={final_test_high['precision']:.4f}, recall={final_test_high['recall']:.4f}\n"
         f"- PR-AUC (test): {final_test_high['pr_auc']:.4f}\n"
         f"- ROC-AUC (test): {final_test_high['roc_auc']:.4f}\n"
     )
@@ -827,16 +873,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--artifacts-root", type=str, default="artifacts")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument(
-        "--review-min-precision",
+        "--review-top-rate",
         type=float,
-        default=0.1,
-        help="Precision constraint for REVIEW threshold selection (maximize recall subject to this precision)",
+        default=0.01,
+        help="Manual review capacity as a fraction of total traffic (e.g., 0.01 = review top 1%)",
     )
     parser.add_argument(
-        "--high-min-precision",
+        "--high-top-rate",
         type=float,
-        default=0.8,
-        help="Precision constraint for HIGH threshold selection (maximize recall subject to this precision)",
+        default=0.002,
+        help="Auto-action capacity as a fraction of total traffic (e.g., 0.002 = block top 0.2%)",
     )
     return parser
 
@@ -847,8 +893,8 @@ def main() -> None:
         data_path=args.data_path,
         artifacts_root=args.artifacts_root,
         random_seed=args.seed,
-        review_min_precision=float(args.review_min_precision),
-        high_min_precision=float(args.high_min_precision),
+        review_top_rate=float(args.review_top_rate),
+        high_top_rate=float(args.high_top_rate),
     )
     print(json.dumps(result, indent=2))
 

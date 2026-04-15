@@ -64,10 +64,25 @@ sequenceDiagram
   A->>A: Validate length vs n_features
   A->>A: Preprocess -> ndarray(1,n)
   A->>M: predict_proba(X)
-  M-->>A: risk_score (0..1, uncalibrated)
+  M-->>A: risk_score (0..1, uncalibrated ranking)
   A->>A: tier = HIGH if score>=threshold_high else REVIEW if score>=threshold_review else LOW
   A->>P: emit counters/histograms
-  A-->>C: {risk_score, risk_tier, action, threshold_review, threshold_high, model_version}
+  A-->>C: {risk_score, risk_tier, action, decision_label, threshold_review, threshold_high, score_semantics, model_version}
+```
+
+### Stream (Demo Ingestion) Flow
+The dashboard "real" mode does not download dataset rows. It pulls already-scored events from the API to avoid ground-truth leakage and better match production architecture.
+
+```mermaid
+sequenceDiagram
+  participant C as Client Dashboard
+  participant S as API (/stream/pull)
+  participant M as Loaded Model
+
+  C->>S: GET /stream/pull?pace_ms=...&max_events=...
+  S->>S: Sample (dataset-backed, base-rate + bursts)
+  S->>M: predict_proba(batch)
+  S-->>C: events[{features, risk_score, risk_percentile?, risk_tier, action, decision_label, event_time_utc}]
 ```
 
 ### Monitoring Flow
@@ -84,8 +99,9 @@ flowchart LR
 ### Metrics emitted by the API
 - **Request count**: `api_requests_total{endpoint,method,http_status}`
 - **Latency histogram**: `api_request_latency_seconds_bucket{endpoint,method,...}`
-- **Prediction counts**: `fraud_predictions_total{label}`
-- **Score distribution (avg)**: `fraud_scores_sum_total` / `fraud_scores_count_total`
+- **Prediction counts**: `fraud_predictions_total{tier}`
+- **Action counts**: `fraud_actions_total{action}`
+- **Score distribution (avg)**: `risk_scores_sum` / `risk_scores_count`
 
 ### Alerts (Prometheus rules)
 Alerts are evaluated in Prometheus and visible in the Prometheus UI:

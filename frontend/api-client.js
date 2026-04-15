@@ -33,11 +33,30 @@
     if (typeof body.risk_score !== 'number') throw new Error('Invalid /predict response: missing risk_score.');
     if (typeof body.risk_tier !== 'string') throw new Error('Invalid /predict response: missing risk_tier.');
     if (typeof body.action !== 'string') throw new Error('Invalid /predict response: missing action.');
-    if (body.fraud_label !== 0 && body.fraud_label !== 1) throw new Error('Invalid /predict response: missing fraud_label.');
+    if (typeof body.decision_label !== 'string') throw new Error('Invalid /predict response: missing decision_label.');
     if (typeof body.threshold_review !== 'number') throw new Error('Invalid /predict response: missing threshold_review.');
     if (typeof body.threshold_high !== 'number') throw new Error('Invalid /predict response: missing threshold_high.');
     if (typeof body.score_semantics !== 'string') throw new Error('Invalid /predict response: missing score_semantics.');
     if (typeof body.model_version !== 'string') throw new Error('Invalid /predict response: missing model_version.');
+    return body;
+  }
+
+  function assertStreamPullShape(body) {
+    if (!body || typeof body !== 'object') throw new Error('Invalid /stream/pull response: not an object.');
+    if (typeof body.model_version !== 'string') throw new Error('Invalid /stream/pull response: missing model_version.');
+    if (typeof body.score_semantics !== 'string') throw new Error('Invalid /stream/pull response: missing score_semantics.');
+    if (typeof body.threshold_review !== 'number') throw new Error('Invalid /stream/pull response: missing threshold_review.');
+    if (typeof body.threshold_high !== 'number') throw new Error('Invalid /stream/pull response: missing threshold_high.');
+    if (!Array.isArray(body.events) || body.events.length < 1) throw new Error('Invalid /stream/pull response: missing events.');
+    const e = body.events[0];
+    if (!e || typeof e !== 'object') throw new Error('Invalid /stream/pull response: event is not an object.');
+    if (typeof e.event_id !== 'string') throw new Error('Invalid /stream/pull response: missing event_id.');
+    if (typeof e.event_time_utc !== 'string') throw new Error('Invalid /stream/pull response: missing event_time_utc.');
+    if (!Array.isArray(e.features) || e.features.length !== 30) throw new Error('Invalid /stream/pull response: invalid features.');
+    if (typeof e.risk_score !== 'number') throw new Error('Invalid /stream/pull response: missing risk_score.');
+    if (typeof e.risk_tier !== 'string') throw new Error('Invalid /stream/pull response: missing risk_tier.');
+    if (typeof e.action !== 'string') throw new Error('Invalid /stream/pull response: missing action.');
+    if (typeof e.decision_label !== 'string') throw new Error('Invalid /stream/pull response: missing decision_label.');
     return body;
   }
 
@@ -129,6 +148,31 @@
           throw new Error('Invalid /dataset/samples response shape.');
         }
         return body;
+      } finally {
+        clear();
+      }
+    }
+
+    async pullStream({ paceMs = 1000, maxEvents = 75 } = {}) {
+      const controller = new AbortController();
+      const clear = withTimeout(this.defaultTimeoutMs, controller);
+      const url = `${this.baseUrl}/stream/pull?pace_ms=${encodeURIComponent(String(paceMs))}&max_events=${encodeURIComponent(String(maxEvents))}`;
+      const start = performance.now();
+
+      try {
+        const resp = await fetch(url, { method: 'GET', signal: controller.signal });
+        const text = await resp.text();
+        const body = safeJsonParse(text);
+        const latencyMs = performance.now() - start;
+        if (!resp.ok) {
+          const detail = body && body.detail ? String(body.detail) : `HTTP ${resp.status}`;
+          const err = new Error(`Stream pull failed: ${detail}`);
+          err._httpStatus = resp.status;
+          err._latencyMs = latencyMs;
+          throw err;
+        }
+        const parsed = assertStreamPullShape(body);
+        return { ...parsed, _latencyMs: latencyMs };
       } finally {
         clear();
       }

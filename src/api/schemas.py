@@ -17,7 +17,10 @@ class PredictResponse(BaseModel):
     risk_score: float = Field(..., ge=0.0, le=1.0, description="Uncalibrated risk score in [0,1].")
     risk_tier: str = Field(..., description="Decision tier derived from thresholds: LOW, REVIEW, HIGH.")
     action: str = Field(..., description="Suggested action: allow, review, block.")
-    fraud_label: int = Field(..., ge=0, le=1, description="Compatibility binary label: 1 only for HIGH tier.")
+    decision_label: str = Field(
+        ...,
+        description="Decision label derived from the policy (ALLOW, REVIEW, BLOCK). HIGH tier is not confirmed fraud.",
+    )
     threshold_review: float = Field(..., ge=0.0, le=1.0, description="Threshold to send to manual review.")
     threshold_high: float = Field(..., ge=0.0, le=1.0, description="Threshold to trigger high-risk auto action.")
     score_semantics: str = Field(..., description="Describes how to interpret risk_score (e.g., uncalibrated).")
@@ -86,6 +89,7 @@ class StreamScoredEvent(BaseModel):
     )
     risk_tier: str = Field(..., description="Decision tier derived from thresholds: LOW, REVIEW, HIGH.")
     action: str = Field(..., description="Suggested action: allow, review, block.")
+    decision_label: str = Field(..., description="Decision label (ALLOW, REVIEW, BLOCK). Not ground truth.")
 
 
 class StreamPullResponse(BaseModel):

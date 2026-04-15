@@ -19,7 +19,7 @@ def main(api_base: str = "http://localhost:8000") -> int:
         print(f"Status: {response.status}")
         print(f"Risk Score: {result['risk_score']:.6f}")
         print(f"Risk Tier: {result['risk_tier']} (action={result['action']})")
-        print(f"Fraud Label (compat): {result['fraud_label']}")
+        print(f"Decision Label: {result['decision_label']}")
         print(f"Thresholds (review/high): {result['threshold_review']} / {result['threshold_high']}")
         print(f"Model Version: {result['model_version']}")
         print("✓ Frontend can call API successfully\n")
@@ -33,7 +33,7 @@ def main(api_base: str = "http://localhost:8000") -> int:
         print(f"Status: {response.status}")
         print(f"Risk Score: {result['risk_score']:.6f}")
         print(f"Risk Tier: {result['risk_tier']} (action={result['action']})")
-        print(f"Fraud Label (compat): {result['fraud_label']}")
+        print(f"Decision Label: {result['decision_label']}")
         print("✓ Different transaction gives different prediction\n")
 
     print("FRONTEND-TO-API INTEGRATION TEST COMPLETE")

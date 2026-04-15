@@ -19,7 +19,8 @@ class StreamConfig:
     burst_max_events: int = 80
     base_fraud_rate: float = 0.0017
     attack_fraud_rate: float = 0.01
-    attack_start_prob_per_pull: float = 0.01
+    # Rare elevated-fraud windows (e.g., compromised merchant/bin). Keep this rare by default.
+    attack_start_prob_per_pull: float = 0.0003
     attack_min_events: int = 20
     attack_max_events: int = 120
 
@@ -154,4 +155,3 @@ class StreamSimulator:
         payload["time_s"] = float(feats[self._time_idx]) if self._time_idx is not None and len(feats) > self._time_idx else None
         payload["amount"] = float(feats[self._amount_idx]) if self._amount_idx is not None and len(feats) > self._amount_idx else None
         return payload
-

@@ -5,6 +5,11 @@ __pycache__/
 *.log
 .DS_Store
 .ipynb_checkpoints/
+.coverage
+htmlcov/
+coverage.xml
+mlruns/
+.~lock*.docx#
 # Large data files - keep only schema/readme
 data/archive/creditcard.csv
 data/raw/creditcard.csv

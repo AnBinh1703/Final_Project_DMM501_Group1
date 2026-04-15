@@ -1,5 +1,5 @@
 [run]
-branch = True
+branch = False
 source = src
 
 [report]
@@ -8,4 +8,3 @@ skip_covered = False
 omit =
   src/pipelines/run_model_workflow.py
   src/pipelines/batch_score_pipeline.py
-

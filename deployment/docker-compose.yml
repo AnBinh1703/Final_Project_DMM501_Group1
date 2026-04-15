@@ -29,11 +29,11 @@ services:
       context: ..
       dockerfile: deployment/frontend/Dockerfile
     ports:
-      - "8080:8080"
+      - "8082:8080"
     depends_on:
       - api
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/index.html"]
+      test: ["CMD", "curl", "-f", "http://localhost:8082/index.html"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -43,12 +43,18 @@ services:
     build:
       context: ..
       dockerfile: deployment/mlflow/Dockerfile
+    environment:
+      MLFLOW_DB_PATH: /mlflow/mlflow.db
+      MLFLOW_URL: http://127.0.0.1:5000/
+      MLFLOW_EXPORTER_PORT: "5001"
+      MLFLOW_EXPORTER_INTERVAL_SECONDS: "15"
     command: >
-      mlflow server
+      sh -lc "python /app/exporter.py &
+      exec mlflow server
       --host 0.0.0.0
       --port 5000
       --backend-store-uri sqlite:////mlflow/mlflow.db
-      --default-artifact-root /mlflow/artifacts
+      --default-artifact-root /mlflow/artifacts"
     volumes:
       - mlflow_data:/mlflow
     ports:

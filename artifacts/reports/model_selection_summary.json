@@ -1,6 +1,6 @@
 {
   "selected_model": "logistic_regression",
-  "selection_timestamp_utc": "2026-04-14T09:50:33.594523+00:00",
+  "selection_timestamp_utc": "2026-04-15T04:48:33.482170+00:00",
   "selection_basis": "Validation-only selection. Primary=Val PR-AUC; tie-break=Recall at REVIEW operating point under a top-K review-rate policy.",
   "threshold_policy": {
     "type": "top_k_rate",

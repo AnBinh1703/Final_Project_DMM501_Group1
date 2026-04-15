@@ -86,10 +86,12 @@ Option A (real dataset model, explicit):
 ```bash
 MODEL_PATH=artifacts/models/final_model.joblib \
 MODEL_VERSION=creditcard-production-v1 \
-REVIEW_THRESHOLD=0.84 \
-FRAUD_THRESHOLD=0.99 \
 uvicorn src.api.main:app --host 0.0.0.0 --port 8000
 ```
+
+Notes:
+- Thresholds default to the policy recorded in `artifacts/models/model_info.json`.
+- Optional overrides (demo only): set `REVIEW_THRESHOLD` and/or `FRAUD_THRESHOLD` to force different operating points.
 
 Option B (synthetic model, explicit):
 ```bash

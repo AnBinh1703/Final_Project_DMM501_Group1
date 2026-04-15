@@ -38,6 +38,7 @@
   "n_features": 30,
   "threshold_review": 0.7391262534904675,
   "threshold_high": 0.9999047447184487,
+  "threshold_f1": 0.99,
   "threshold_policy": {
     "type": "top_k_rate",
     "review_top_rate": 0.01,
@@ -176,7 +177,31 @@
       "fp": 11,
       "fn": 15,
       "tp": 59
+    },
+    "val_threshold_f1": {
+      "threshold": 0.99,
+      "precision": 0.5673076923076923,
+      "recall": 0.7972972972972973,
+      "f1": 0.6629213483146067,
+      "roc_auc": 0.9683900961951001,
+      "pr_auc": 0.6300872677700333,
+      "tn": 42602,
+      "fp": 45,
+      "fn": 15,
+      "tp": 59
+    },
+    "test_threshold_f1": {
+      "threshold": 0.99,
+      "precision": 0.7023809523809523,
+      "recall": 0.7972972972972973,
+      "f1": 0.7468354430379747,
+      "roc_auc": 0.9652288754708565,
+      "pr_auc": 0.7694198862705721,
+      "tn": 42623,
+      "fp": 25,
+      "fn": 15,
+      "tp": 59
     }
   },
-  "selection_timestamp_utc": "2026-04-15T04:48:33.482170+00:00"
+  "selection_timestamp_utc": "2026-04-15T06:07:22.121889+00:00"
 }

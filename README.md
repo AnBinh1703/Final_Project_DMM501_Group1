@@ -113,9 +113,12 @@ Artifacts created:
 ```bash
 MODEL_PATH=artifacts/models/final_model.joblib \
 MODEL_VERSION=final-model \
-FRAUD_THRESHOLD=0.99 \
 uvicorn src.api.main:app --host 0.0.0.0 --port 8000
 ```
+
+Notes:
+- By default, thresholds are loaded from `artifacts/models/model_info.json` next to the model artifact.
+- Optional overrides (for demos only): set `REVIEW_THRESHOLD` and/or `FRAUD_THRESHOLD`.
 
 ### 4) Use the API
 Health:

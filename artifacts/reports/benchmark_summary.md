@@ -9,5 +9,5 @@
 
 - Review operating point (top-K): precision=0.1462, recall=0.8514
 - High operating point (top-K): precision=0.8429, recall=0.7973
-- PR-AUC (test): 0.7694
+- Average Precision / PR-AUC (test): 0.7694
 - ROC-AUC (test): 0.9652

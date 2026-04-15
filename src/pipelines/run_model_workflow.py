@@ -146,9 +146,13 @@ def _plot_roc(y_true: np.ndarray, y_score: np.ndarray, title: str, out_path: Pat
 
 def _plot_pr(y_true: np.ndarray, y_score: np.ndarray, title: str, out_path: Path) -> None:
     precision, recall, _ = precision_recall_curve(y_true, y_score)
-    pr_auc = auc(recall, precision)
+    # Use Average Precision (AP) for consistency with exported PR-AUC metrics
+    # (average_precision_score), which is the standard scalar summary for
+    # imbalanced classification. The trapezoidal area under the PR curve
+    # depends on the discretization; we avoid presenting it as "PR-AUC".
+    ap = float(average_precision_score(y_true, y_score))
     fig, ax = plt.subplots(figsize=(6, 4))
-    ax.plot(recall, precision, label=f"PR AUC={pr_auc:.4f}")
+    ax.plot(recall, precision, label=f"Average Precision (AP)={ap:.4f}")
     ax.set_xlabel("Recall")
     ax.set_ylabel("Precision")
     ax.set_title(title)
@@ -739,6 +743,14 @@ def run_workflow(
     final_test_review = _evaluate(y_test, final_test_scores, threshold=final_threshold_review)
     final_test_high = _evaluate(y_test, final_test_scores, threshold=final_threshold_high)
 
+    # Offline reference operating point: F1-optimal threshold on validation,
+    # used as a comparator (not the production policy).
+    selected_threshold_df = improved_threshold_df if selected_model == "lightgbm" else baseline_threshold_df
+    selected_val_scores = improved_val_scores if selected_model == "lightgbm" else baseline_val_scores
+    final_threshold_f1 = _best_threshold_from_f1(selected_threshold_df)
+    final_val_f1 = _evaluate(y_val, selected_val_scores, threshold=final_threshold_f1)
+    final_test_f1 = _evaluate(y_test, final_test_scores, threshold=final_threshold_f1)
+
     final_cm = confusion_matrix(y_test, (final_test_scores >= final_threshold_high).astype(int))
     _plot_confusion_matrix(
         final_cm,
@@ -810,7 +822,6 @@ def run_workflow(
     _save_json(reports_dir / "model_validation_checks.json", validation_checks)
 
     # Reference score distribution for UI percentile display (uncalibrated ranking aid).
-    selected_val_scores = improved_val_scores if selected_model == "lightgbm" else baseline_val_scores
     score_percentiles = _compute_score_percentiles(np.asarray(selected_val_scores, dtype=float))
 
     model_info = {
@@ -822,6 +833,7 @@ def run_workflow(
         "n_features": int(len(feature_cols)),
         "threshold_review": float(final_threshold_review),
         "threshold_high": float(final_threshold_high),
+        "threshold_f1": float(final_threshold_f1),
         "threshold_policy": {
             "type": "top_k_rate",
             "review_top_rate": float(review_top_rate),
@@ -837,6 +849,8 @@ def run_workflow(
             },
             "test_threshold_review": final_test_review,
             "test_threshold_high": final_test_high,
+            "val_threshold_f1": final_val_f1,
+            "test_threshold_f1": final_test_f1,
         },
         "selection_timestamp_utc": selection_timestamp,
     }
@@ -851,7 +865,7 @@ def run_workflow(
         "## Final Test Metrics\n\n"
         f"- Review operating point (top-K): precision={final_test_review['precision']:.4f}, recall={final_test_review['recall']:.4f}\n"
         f"- High operating point (top-K): precision={final_test_high['precision']:.4f}, recall={final_test_high['recall']:.4f}\n"
-        f"- PR-AUC (test): {final_test_high['pr_auc']:.4f}\n"
+        f"- Average Precision / PR-AUC (test): {final_test_high['pr_auc']:.4f}\n"
         f"- ROC-AUC (test): {final_test_high['roc_auc']:.4f}\n"
     )
     (reports_dir / "benchmark_summary.md").write_text(benchmark_summary_md, encoding="utf-8")

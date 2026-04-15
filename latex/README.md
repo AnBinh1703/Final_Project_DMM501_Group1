@@ -4,6 +4,8 @@ Main file: `latex/FINAL_PROJECT_REPORT.tex`
 
 Additional file (evidence-based E2E): `latex/FINAL_E2E_REPORT.tex`
 
+Submission-style academic paper (required structure): `latex/EndToEnd_Fraud_Decision_Intelligence.tex`
+
 ## Build (PDF)
 
 From repo root:

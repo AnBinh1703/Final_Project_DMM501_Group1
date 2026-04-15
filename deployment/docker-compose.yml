@@ -9,9 +9,7 @@ services:
       #   python -m src.pipelines.run_model_workflow --data-path data/archive/creditcard.csv --artifacts-root artifacts
       MODEL_PATH: /app/artifacts/models/final_model.joblib
       # For deployment, prefer using thresholds stored in artifacts/models/model_info.json.
-      # If you override them, keep them consistent with that file.
-      REVIEW_THRESHOLD: "0.84"
-      FRAUD_THRESHOLD: "0.99"
+      # (Override only when explicitly demonstrating policy changes.)
       MODEL_VERSION: creditcard-production-v1
     volumes:
       - ../artifacts:/app/artifacts

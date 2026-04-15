@@ -72,10 +72,12 @@ def main():
         print(f"      ✓ Prediction Success (Status: {status})")
         print(f"      ✓ Risk Score: {result['risk_score']:.6f}")
         print(f"      ✓ Risk Tier: {result['risk_tier']} (action={result['action']})")
-        print(f"      ✓ Fraud Label (compat): {result['fraud_label']}")
         print(f"      ✓ Thresholds (review/high): {result['threshold_review']} / {result['threshold_high']}")
+        print(f"      ✓ Decision Label: {result['decision_label']} (not ground truth)")
+        print(f"      ✓ Score Semantics: {result.get('score_semantics')}")
         print(f"      ✓ Model Version: {result['model_version']}")
-        print(f"      ✓ Model Type: {result.get('model_type')}")
+        if result.get('model_type') is not None:
+            print(f"      ✓ Model Type: {result.get('model_type')}")
     else:
         print(f"      ✗ Prediction Failed: {status}")
         return
@@ -90,7 +92,7 @@ def main():
         print(f"      ✓ Prediction Success")
         print(f"      ✓ Risk Score: {result['risk_score']:.6f}")
         print(f"      ✓ Risk Tier: {result['risk_tier']} (action={result['action']})")
-        print(f"      ✓ Fraud Label (compat): {result['fraud_label']}")
+        print(f"      ✓ Decision Label: {result['decision_label']} (not ground truth)")
     else:
         print(f"      ✗ Prediction Failed: {status}")
     
@@ -130,9 +132,9 @@ def main():
     print("  • Error Handling: WORKING")
     print("  • Demo Readiness (API): YES ✓")
     print("\nNext Steps:")
-    print("  1. Open http://localhost:8080/index.html in browser")
-    print("  2. Load sample transaction or enter your own")
-    print("  3. Click 'Predict Fraud' to see results")
+    print("  1. Open the frontend (Compose: http://localhost:8082)")
+    print("  2. Start Stream (Real Sample Stream) to see live tiered decisions")
+    print("  3. Check API docs at http://localhost:8000/docs")
     print("  4. Check metrics at http://localhost:8000/metrics")
     print("\n")
 

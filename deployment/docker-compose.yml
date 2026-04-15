@@ -16,7 +16,7 @@ services:
     volumes:
       - ../artifacts:/app/artifacts
     ports:
-      - "8000:8000"
+      - "${API_PORT:-8000}:8000"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 10s
@@ -29,11 +29,11 @@ services:
       context: ..
       dockerfile: deployment/frontend/Dockerfile
     ports:
-      - "8082:8080"
+      - "${FRONTEND_PORT:-8082}:8080"
     depends_on:
       - api
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8082/index.html"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/index.html"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -58,7 +58,7 @@ services:
     volumes:
       - mlflow_data:/mlflow
     ports:
-      - "5000:5000"
+      - "${MLFLOW_PORT:-5000}:5000"
 
   prometheus:
     image: prom/prometheus:v2.54.1
@@ -69,7 +69,7 @@ services:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
     ports:
-      - "9090:9090"
+      - "${PROMETHEUS_PORT:-9090}:9090"
     depends_on:
       - api
 
@@ -79,7 +79,7 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: admin
       GF_USERS_ALLOW_SIGN_UP: "false"
     ports:
-      - "3000:3000"
+      - "${GRAFANA_PORT:-3000}:3000"
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/var/lib/grafana/dashboards:ro

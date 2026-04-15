@@ -194,6 +194,13 @@ python -m src.pipelines.run_model_workflow --data-path data/archive/creditcard.c
 docker compose -f deployment/docker-compose.yml up --build
 ```
 
+Or run the one-command script (build artifacts + start stack):
+```bash
+bash scripts/deploy_full_stack.sh --real
+# or faster:
+bash scripts/deploy_full_stack.sh --fast
+```
+
 Service URLs:
 - API: `http://localhost:8000` (Swagger: `/docs`, Metrics: `/metrics`)
 - Frontend: `http://localhost:8080` (change the port mapping in `deployment/docker-compose.yml` if 8080 is already in use)

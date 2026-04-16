@@ -1,6 +1,6 @@
 {
   "selected_model": "logistic_regression",
-  "selection_timestamp_utc": "2026-04-15T06:07:22.121889+00:00",
+  "selection_timestamp_utc": "2026-04-15T09:43:16.389578+00:00",
   "selection_basis": "Validation-only selection. Primary=Val PR-AUC; tie-break=Recall at REVIEW operating point under a top-K review-rate policy.",
   "threshold_policy": {
     "type": "top_k_rate",
@@ -39,10 +39,10 @@
   },
   "improved": {
     "val_pr_auc": 0.6289299179337815,
-    "threshold_review": 3.771251479558523e-07,
-    "threshold_high": 0.000299839907963512,
+    "threshold_review": 3.771251479558744e-07,
+    "threshold_high": 0.0002998399079635194,
     "val_metrics_review": {
-      "threshold": 3.771251479558523e-07,
+      "threshold": 3.771251479558744e-07,
       "precision": 0.13317757009345793,
       "recall": 0.7702702702702703,
       "f1": 0.22709163346613545,
@@ -54,7 +54,7 @@
       "tp": 57
     },
     "val_metrics_high": {
-      "threshold": 0.000299839907963512,
+      "threshold": 0.0002998399079635194,
       "precision": 0.6395348837209303,
       "recall": 0.7432432432432432,
       "f1": 0.6875,

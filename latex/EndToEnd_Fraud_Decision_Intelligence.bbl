@@ -1,0 +1,42 @@
+\begin{thebibliography}{1}
+
+\bibitem{grafana}
+{Grafana Labs}.
+\newblock Grafana: Observability and data visualization.
+\newblock \url{https://grafana.com/}.
+\newblock Accessed 2026-04-15.
+
+\bibitem{kaggle-creditcard-fraud}
+{Kaggle}.
+\newblock Credit card fraud detection.
+\newblock \url{https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud}.
+\newblock Accessed 2026-04-15.
+
+\bibitem{lightgbm}
+Guolin Ke, Qi~Meng, Thomas Finley, Taifeng Wang, Wei Chen, Weidong Ma, Qiwei
+  Ye, and Tie-Yan Liu.
+\newblock Lightgbm: A highly efficient gradient boosting decision tree.
+\newblock In {\em Advances in Neural Information Processing Systems (NeurIPS)},
+  2017.
+
+\bibitem{shap}
+Scott~M. Lundberg and Su-In Lee.
+\newblock A unified approach to interpreting model predictions.
+\newblock In {\em Advances in Neural Information Processing Systems (NeurIPS)},
+  2017.
+
+\bibitem{scikit-learn}
+Fabian Pedregosa, Ga{\"e}l Varoquaux, Alexandre Gramfort, Vincent Michel,
+  Bertrand Thirion, Olivier Grisel, Mathieu Blondel, Peter Prettenhofer, Ron
+  Weiss, Vincent Dubourg, Jake Vanderplas, Alexandre Passos, David Cournapeau,
+  Matthieu Brucher, Matthieu Perrot, and {\'E}douard Duchesnay.
+\newblock Scikit-learn: Machine learning in python.
+\newblock {\em Journal of Machine Learning Research}, 12:2825--2830, 2011.
+
+\bibitem{prometheus}
+{The Prometheus Authors}.
+\newblock Prometheus monitoring system.
+\newblock \url{https://prometheus.io/}.
+\newblock Accessed 2026-04-15.
+
+\end{thebibliography}

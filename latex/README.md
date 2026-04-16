@@ -28,3 +28,13 @@ Notes:
 - The report includes images from `../artifacts/figures/*.png`. If those files are missing, run:
   - `python -m src.pipelines.run_model_workflow --data-path data/archive/creditcard.csv --artifacts-root artifacts --seed 42`
 - If Matplotlib fails to write cache in restricted environments, set `MPLCONFIGDIR=/tmp` (as suggested in `QUICK_START.md`).
+
+## Build (BibTeX paper)
+
+```bash
+cd latex
+pdflatex -interaction=nonstopmode -halt-on-error EndToEnd_Fraud_Decision_Intelligence.tex
+bibtex EndToEnd_Fraud_Decision_Intelligence
+pdflatex -interaction=nonstopmode -halt-on-error EndToEnd_Fraud_Decision_Intelligence.tex
+pdflatex -interaction=nonstopmode -halt-on-error EndToEnd_Fraud_Decision_Intelligence.tex
+```

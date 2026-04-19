@@ -5,6 +5,8 @@ from contextlib import contextmanager
 
 from prometheus_client import Counter, Gauge, Histogram
 
+from src.monitoring.mlflow_runtime_tracker import MLFLOW_RUNTIME_TRACKER
+
 REQUESTS_TOTAL = Counter(
     "api_requests_total",
     "Total number of requests",
@@ -101,6 +103,7 @@ def record_response(endpoint: str, method: str, http_status: int) -> None:
         method=method,
         http_status=str(http_status),
     ).inc()
+    MLFLOW_RUNTIME_TRACKER.record_response(endpoint=endpoint, method=method, http_status=int(http_status))
 
 
 def record_prediction(score: float, tier: str, action: str, decision_recommendation: str | None = None) -> None:
@@ -111,6 +114,11 @@ def record_prediction(score: float, tier: str, action: str, decision_recommendat
         DECISION_RECOMMENDATIONS_TOTAL.labels(decision=str(decision_recommendation)).inc()
     SCORES_SUM.inc(score)
     SCORES_COUNT.inc(1)
+    MLFLOW_RUNTIME_TRACKER.record_prediction(
+        score=float(score),
+        tier=str(tier),
+        decision_recommendation=str(decision_recommendation) if decision_recommendation is not None else None,
+    )
 
 
 def record_alert_created(*, tier: str, case_status: str) -> None:
@@ -129,3 +137,11 @@ def record_case_status(case_status: str) -> None:
 
 def set_review_queue_size(size: int) -> None:
     REVIEW_QUEUE_SIZE.set(max(0, int(size)))
+
+
+def flush_runtime_tracking() -> None:
+    MLFLOW_RUNTIME_TRACKER.flush()
+
+
+def runtime_tracking_status() -> dict[str, object]:
+    return MLFLOW_RUNTIME_TRACKER.status()

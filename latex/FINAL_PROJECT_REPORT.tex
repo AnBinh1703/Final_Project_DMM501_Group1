@@ -672,22 +672,138 @@ The authoritative deployed threshold and selected model are taken from \code{art
 \section*{Appendix — Key Figures (from \code{artifacts/figures/})}
 \addcontentsline{toc}{section}{Appendix — Key Figures (from artifacts/figures/)}
 
+This appendix expands visual evidence coverage for dataset properties, model behavior, threshold policy selection, frontend operation, and deployment/monitoring runtime.
+
+\subsection*{A. Dataset and EDA visuals}
+
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.75\linewidth]{../artifacts/figures/class_distribution.png}
   \caption{Class distribution (fraud vs non-fraud). Source: \code{artifacts/figures/class_distribution.png}}
+  \label{fig:app_class_dist}
 \end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\linewidth]{../artifacts/figures/amount_distribution.png}
+  \caption{Transaction amount distribution. Source: \code{artifacts/figures/amount_distribution.png}}
+  \label{fig:app_amount_dist}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\linewidth]{../artifacts/figures/time_distribution.png}
+  \caption{Transaction time distribution. Source: \code{artifacts/figures/time_distribution.png}}
+  \label{fig:app_time_dist}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\linewidth]{../artifacts/figures/fraud_vs_nonfraud_amount.png}
+  \caption{Fraud vs non-fraud amount comparison. Source: \code{artifacts/figures/fraud_vs_nonfraud_amount.png}}
+  \label{fig:app_fraud_amt}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\linewidth]{../artifacts/figures/fraud_vs_nonfraud_time.png}
+  \caption{Fraud vs non-fraud time comparison. Source: \code{artifacts/figures/fraud_vs_nonfraud_time.png}}
+  \label{fig:app_fraud_time}
+\end{figure}
+
+\subsection*{B. Model evaluation and selection visuals}
 
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.85\linewidth]{../artifacts/figures/model_comparison.png}
   \caption{Model comparison of tuned metrics. Source: \code{artifacts/figures/model_comparison.png}}
+  \label{fig:app_model_cmp}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.8\linewidth]{../artifacts/figures/baseline_roc_curve.png}
+  \caption{Baseline ROC curve. Source: \code{artifacts/figures/baseline_roc_curve.png}}
+  \label{fig:app_base_roc}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.8\linewidth]{../artifacts/figures/improved_roc_curve.png}
+  \caption{Improved ROC curve. Source: \code{artifacts/figures/improved_roc_curve.png}}
+  \label{fig:app_imp_roc}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.8\linewidth]{../artifacts/figures/final_pr_curve.png}
+  \caption{Final selected model PR curve. Source: \code{artifacts/figures/final_pr_curve.png}}
+  \label{fig:app_final_pr}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.72\linewidth]{../artifacts/figures/final_confusion_matrix.png}
+  \caption{Final selected model confusion matrix. Source: \code{artifacts/figures/final_confusion_matrix.png}}
+  \label{fig:app_final_cm}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.9\linewidth]{../artifacts/figures/threshold_comparison.png}
+  \caption{Threshold comparison curves. Source: \code{artifacts/figures/threshold_comparison.png}}
+  \label{fig:app_thr_cmp}
 \end{figure}
 
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.9\linewidth]{../artifacts/figures/shap_summary.png}
   \caption{SHAP summary plot (LightGBM explainability). Source: \code{artifacts/figures/shap_summary.png}}
+  \label{fig:app_shap}
+\end{figure}
+
+\subsection*{C. Frontend and deployment visuals}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.95\linewidth]{../artifacts/figures/frontend_dashboard_live.png}
+  \caption{Frontend dashboard (live view). Source: \code{artifacts/figures/frontend_dashboard_live.png}}
+  \label{fig:app_front_live}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.95\linewidth]{../artifacts/figures/frontend_dashboard_streaming.png}
+  \caption{Frontend dashboard (streaming mode). Source: \code{artifacts/figures/frontend_dashboard_streaming.png}}
+  \label{fig:app_front_stream}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.92\linewidth]{../artifacts/deploys/docker-compose.png}
+  \caption{Docker Compose runtime screenshot. Source: \code{artifacts/deploys/docker-compose.png}}
+  \label{fig:app_docker_compose}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.9\linewidth]{../artifacts/deploys/swagger-docs.png}
+  \caption{API Swagger UI screenshot. Source: \code{artifacts/deploys/swagger-docs.png}}
+  \label{fig:app_swagger}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.92\linewidth]{../artifacts/deploys/Grafana-dashboard.png}
+  \caption{Grafana monitoring dashboard screenshot. Source: \code{artifacts/deploys/Grafana-dashboard.png}}
+  \label{fig:app_grafana}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.92\linewidth]{../artifacts/deploys/Prometheus-targets.png}
+  \caption{Prometheus targets screenshot. Source: \code{artifacts/deploys/Prometheus-targets.png}}
+  \label{fig:app_prom_targets}
 \end{figure}
 
 \end{document}

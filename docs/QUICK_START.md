@@ -133,6 +133,19 @@ Service URLs:
 - Grafana: <http://localhost:3000>
 - MLflow: <http://localhost:5000>
 
+Runtime traffic tracking in MLflow:
+
+- Docker API service now logs online traffic metrics to MLflow experiment `fraud-runtime-traffic`.
+- Open MLflow UI and select run `api-online-traffic` to follow traffic counters over time.
+- Send traffic to `/predict` and `/stream/pull` to update metrics.
+- Compose config sets MLflow `--allowed-hosts '*'` for local Docker service-to-service logging; tighten this in production.
+
+If metrics are not moving in MLflow after traffic:
+
+- Ensure requests are hitting the Docker API container, not a separately running local `uvicorn` process.
+- On Windows, a local Python process on `127.0.0.1:8000` can shadow Docker-published port access.
+- Stop the local process or run compose with a different host API port (for example `API_PORT=8001`).
+
 ## 7) Operational Notes
 
 - `risk_score` is uncalibrated (`risk_score_uncalibrated`) and should be treated as a ranking signal.

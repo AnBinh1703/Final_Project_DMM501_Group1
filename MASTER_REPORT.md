@@ -1,276 +1,411 @@
-# Master-Level Report — End-to-End Fraud Detection System (Risk Scoring → Decision Intelligence)
+<!-- markdownlint-disable MD025 MD032 MD012 -->
 
-## 2026-04-18 Alignment Notice
+# 1. Executive Summary
 
-This file remains as historical report content.
+This document is the single source of truth for the Real-Time Banking Transaction Fraud Detection and Decision Support System.
 
-Current source-of-truth for implemented architecture, API contracts, lifecycle workflow,
-and implemented-vs-proposed matrix is:
-- `docs/FINAL_DECISION_SUPPORT_UPGRADE_REPORT.md`
+The system is implemented as an end-to-end decision-support platform, not a standalone classifier.
 
-Current system framing is:
-Real-Time Banking Transaction Fraud Detection and Decision Support System.
+Runtime flow:
+Incoming transaction -> validation -> feature preparation -> risk_score inference -> risk_tier assignment -> decision_recommendation -> reason code generation -> alert and case handling -> timeline tracking -> monitoring metrics and dashboards.
 
-Important update:
-- Alert/case/timeline APIs are now implemented in backend.
-- Frontend case operations are now API-backed.
-- Persistence remains in-memory (demo-level simulated) and is explicitly labeled.
+Current verified state as of 2026-04-19:
+- Unit and data tests passed: 14 passed.
+- Integration tests passed: 17 passed.
+- Docker Compose stack running with healthy API and PostgreSQL.
+- API health confirmed with model loaded and 30 expected features.
 
-**Repository:** `Final_Project_DMM501_Group1`  
-**Evidence directory:** `artifacts/` (models, figures, tables, reports)  
-**Serving stack:** FastAPI + Prometheus metrics + Docker Compose monitoring (Prometheus/Grafana)  
-**Core stance:** Fraud detection is not “a classifier”; it is **decision-making under asymmetric costs and limited capacity**.
 
----
+# 2. Introduction
 
-## 1. Introduction
+This project implements a practical fraud decision-support lifecycle for banking transactions, with model inference integrated into operational workflows.
 
-Fraud detection systems exist to reduce financial losses and operational burden by identifying suspicious transactions early enough to trigger an intervention. However, the operational problem is not simply “predict fraud”; it is to **allocate scarce interventions** (manual review, step-up authentication, blocking) to the subset of traffic where the expected benefit outweighs the harm from false positives.
+The system includes:
+- ML pipeline and model artifacts.
+- Backend API with strict contracts.
+- Frontend analyst workflow.
+- Monitoring and alerting.
+- Containerized deployment.
+- Test and CI quality gates.
 
-This project implements an end-to-end ML system that converts transaction features into an **uncalibrated risk score** and then maps that score to **tiered actions** via an explicit decision policy. The system is instrumented for observability, packaged for reproducibility, and tested for correctness of contracts and failure modes.
+The objective is to support safe and explainable fraud triage decisions using risk-aware policies.
 
----
 
-## 2. Problem Definition & Business Context
+# 3. Problem Definition
 
-### 2.1 Business problem
+Fraud detection in banking is an imbalanced classification and decision-allocation problem.
 
-Card payment fraud produces direct loss (chargebacks, reimbursed losses) and indirect costs (manual review, customer support, churn due to friction). A scoring service is valuable only if it supports operational decisions:
+Key challenges:
+- Fraud events are rare compared to normal traffic.
+- False negatives increase direct loss.
+- False positives increase customer friction and analyst workload.
+- Operational capacity requires triaging only a limited fraction of transactions.
 
-1. **Allow** low-risk transactions without friction.
-2. **Review / step-up** medium-risk transactions when human or automated capacity exists.
-3. **Block / hold** very high-risk transactions when the risk justifies stronger intervention.
+Therefore, the project treats model output as decision-support input, not autonomous judgment.
 
-### 2.2 Success criteria (model + system + business)
 
-This repo makes success multi-dimensional:
+# 4. System Overview
 
-- **Model ranking quality:** measured by Average Precision (PR-AUC) and ROC-AUC on a held-out test set (`artifacts/figures/final_pr_curve.png`, `artifacts/figures/final_roc_curve.png`).
-- **Operational operating points:** measured by precision/recall under the **review** and **high** tiers defined by the decision policy (`artifacts/models/model_info.json`).
-- **System reliability:** health checks, typed API schemas, and Prometheus metrics (`src/api/main.py`, `src/monitoring/metrics.py`).
+System purpose:
+Provide near-real-time transaction risk assessment and workflow support for analysts.
 
-This framing is important: many models can look “good” offline, but only a policy-grounded operating point yields defendable business behavior.
+Primary entities:
+- risk_score: model output ranking signal.
+- risk_tier: LOW, REVIEW, HIGH.
+- decision_recommendation: ALLOW, STEP_UP_AUTH, MANUAL_REVIEW, HOLD, BLOCK.
+- alert: event raised for review/high-risk cases.
+- case: investigation object with lifecycle states and timeline.
 
----
+Operational flow:
+- LOW: pass through with monitoring.
+- REVIEW: route to human or step-up workflow.
+- HIGH: stronger controls such as hold or block.
 
-## 3. Dataset & Data Characteristics
 
-### 3.1 Dataset
+# 5. System Architecture
 
-The system uses the Kaggle Credit Card Fraud dataset (`data/archive/creditcard.csv`), which contains 30 input features (`Time`, `V1..V28`, `Amount`) and a binary target `Class`. A schema validation artifact is generated at `artifacts/reports/dataset_schema.json`.
+Architectural layers:
+- Scoring layer: model loading and inference.
+- Decision layer: threshold and policy mapping.
+- Case operations layer: alert and case lifecycle handling.
+- Monitoring layer: metrics, targets, and alert rules.
+- Presentation layer: analyst-facing frontend.
 
-### 3.2 Class imbalance and evaluation implications
+Core architecture files:
+- ARCHITECTURE.md
+- src/api/main.py
+- src/services/scoring_service.py
+- src/services/decision_service.py
+- src/services/reason_code_service.py
+- src/services/case_service.py
+- src/repositories/in_memory_case_repository.py
+- src/monitoring/metrics.py
 
-Fraud is extremely rare (≈0.17%). In such regimes:
 
-- Accuracy is not meaningful because predicting “non-fraud” for every transaction yields very high accuracy.
-- Precision and recall must be interpreted jointly at operational thresholds, because the business impact depends on how many cases are flagged.
-- Average Precision (AP) is an appropriate scalar ranking metric because it emphasizes performance on the positive class.
+# 6. Repository Structure
 
-### 3.3 Representational limitation
+Top-level structure:
+- src: backend API, services, repositories, pipelines, monitoring, utilities.
+- frontend: dashboard UI and API client logic.
+- artifacts: models, reports, figures, benchmarks, deployment evidence.
+- deployment: docker compose, Dockerfiles, Prometheus, Grafana, MLflow configs.
+- tests: unit, data, model, integration, and local verification scripts.
+- docs: technical reports, audits, quick guides, and specification documents.
+- latex: submission-ready report variants.
 
-Features `V1..V28` are PCA-transformed, which reduces interpretability. The report therefore treats explainability outputs as **model-behavior evidence** rather than causal explanations, and avoids claims about “why fraud happens” at a semantic feature level.
+Canonical implementation references:
+- README.md
+- ARCHITECTURE.md
+- docs/SYSTEM_SPECIFICATION_DOCUMENT.md
+- docs/RESPONSIBLE_AI.md
+- docs/QUICK_START.md
+
 
----
+# 7. Dataset and Data Analysis
 
-## 4. ML Pipeline Design
+Primary dataset:
+- Kaggle Credit Card Fraud dataset at data/archive/creditcard.csv.
 
-The benchmark workflow is implemented in `src/pipelines/run_model_workflow.py` and generates an evidence pack under `artifacts/`:
+Observed characteristics:
+- 284,807 rows.
+- 30 model features plus target column.
+- Fraud prevalence approximately 0.17 percent.
 
-1. **Ingestion + validation** (schema, missing values, duplicates).
-2. **Train/validation/test split** (70/15/15 with stratification; exported to `artifacts/reports/split_info.json`).
-3. **Baseline model:** Logistic Regression within a scaling pipeline.
-4. **Candidate model:** LightGBM with a small hyperparameter grid.
-5. **Selection rule:** validation-only selection with a primary criterion of validation AP (PR-AUC), with tie-break on recall at the review operating point (`artifacts/reports/model_selection_summary.json`).
-6. **Artifact production:** deployable model binary + model metadata used by the serving API (`artifacts/models/final_model.joblib`, `artifacts/models/model_info.json`).
+Implications:
+- Accuracy alone is misleading.
+- PR-AUC and threshold-conditioned precision/recall are required.
+- Capacity-aware policy thresholds are necessary for realistic operations.
+
+Data and EDA artifacts:
+- artifacts/reports/dataset_schema.json
+- artifacts/reports/class_distribution.json
+- artifacts/reports/eda_summary.json
+- artifacts/figures/class_distribution.png
+- artifacts/figures/amount_distribution.png
+- artifacts/figures/time_distribution.png
+- artifacts/figures/fraud_vs_nonfraud_amount.png
+- artifacts/figures/fraud_vs_nonfraud_time.png
 
-### 4.1 Trade-off: stratified split vs time-aware evaluation
 
-This project uses stratified random splitting to produce stable evaluation and a clean demonstration pipeline. In production fraud systems, a time-aware split is usually required because concept drift and delayed labels are common. The report therefore treats offline metrics as **necessary but not sufficient** evidence of real-world effectiveness.
+# 8. Machine Learning Pipeline
 
----
+Main workflow implementation:
+- src/pipelines/run_model_workflow.py
+
+Pipeline stages:
+- Ingestion and schema checks.
+- Train, validation, and test split.
+- Baseline and improved model training.
+- Validation-based model selection.
+- Threshold tuning and policy metadata generation.
+- Artifact export for deployment.
+- Metrics, plots, and benchmark report generation.
 
-## 5. Model Evaluation & Selection
+Secondary workflow:
+- src/pipelines/train_pipeline.py
 
-Two modeling approaches are implemented and compared:
+Model versioning and run tracking:
+- Implemented for both workflows using src/models/versioning.py.
+- Each training run creates a unique model version and run ID.
+- Per-run metadata and run history logs are persisted.
 
-- **Logistic Regression (baseline):** strong, interpretable baseline with stable behavior under imbalance using class weighting.
-- **LightGBM (improved candidate):** non-linear model with higher expressiveness, tuned using a small parameter grid.
 
-The benchmark generates:
+# 9. Model Evaluation
 
-- ROC and PR curves (`artifacts/figures/*roc_curve.png`, `artifacts/figures/*pr_curve.png`).
-- Threshold sweeps (`artifacts/figures/*threshold_sweep.png` and `artifacts/benchmarks/*threshold_tuning.csv`).
-- Model comparison tables (`artifacts/benchmarks/model_comparison_table.csv`).
+Evaluation scope includes:
+- ROC-AUC.
+- PR-AUC (Average Precision emphasis for imbalance).
+- Precision, recall, and F1 at selected thresholds.
+- Confusion matrix and threshold sweep diagnostics.
+
+Artifacts:
+- artifacts/figures/baseline_roc_curve.png
+- artifacts/figures/baseline_pr_curve.png
+- artifacts/figures/improved_roc_curve.png
+- artifacts/figures/improved_pr_curve.png
+- artifacts/figures/final_roc_curve.png
+- artifacts/figures/final_pr_curve.png
+- artifacts/figures/final_confusion_matrix.png
+- artifacts/figures/model_comparison.png
+- artifacts/figures/threshold_comparison.png
+- artifacts/benchmarks/model_comparison_table.csv
+- artifacts/benchmarks/threshold_comparison_table.csv
+
+Current deployment metadata confirms:
+- model_type: logistic_regression_pipeline
+- expected_features: 30
+- threshold_review and threshold_high are policy-driven.
+
+
+# 10. Decision Logic and Fraud Workflow
+
+Core decision outputs:
+- risk_score.
+- risk_tier.
+- decision_recommendation.
+
+Policy behavior:
+- risk_tier LOW for low-ranked transactions.
+- risk_tier REVIEW for review-capacity zone.
+- risk_tier HIGH for top-risk zone.
+
+Case workflow:
+- Alert generated for REVIEW and HIGH outcomes.
+- Case created and tracked through status transitions.
+- Timeline records key events for auditability.
+
+Important semantic rule:
+- risk_score is uncalibrated ranking output and not claimed as calibrated fraud probability.
+
+
+# 11. Backend System Design
+
+Primary API module:
+- src/api/main.py
+
+Schema and contracts:
+- src/api/schemas.py
+
+Key endpoint groups:
+- Scoring and system: /predict, /health, /metrics, /stream/pull.
+- Alert handling: /alerts, /alerts/{alert_id}, /alerts/{alert_id}/status.
+- Case handling: /cases, /cases/{case_id}, /cases/{case_id}/status, /cases/{case_id}/resolve, /cases/{case_id}/timeline.
+- Data utilities: /features/schema, /features/random, /dataset/samples, /internal/dataset/samples.
+
+Repository mode:
+- Current default runtime reports case_repository_mode as in_memory_demo.
+- SQL persistence path exists and is validated in integration tests.
+
+
+# 12. Frontend System Design
+
+Frontend implementation:
+- frontend/index.html
+- frontend/app.js
+- frontend/ui.js
+- frontend/api-client.js
+- frontend/demo-data.js
+
+Implemented behavior:
+- Stream and single-transaction interactions.
+- Queue and case-oriented views.
+- Reason code and decision display.
+- Timeline visualization and status actions.
+
+Evidence screenshots:
+- artifacts/figures/frontend_dashboard_live.png
+- artifacts/figures/frontend_dashboard_streaming.png
+
+
+# 13. Monitoring and Observability
+
+Monitoring stack:
+- Prometheus scrape and rule configuration.
+- Grafana dashboard provisioning.
+- API metrics endpoint instrumentation.
+
+Primary files:
+- deployment/prometheus/prometheus.yml
+- deployment/prometheus/alerts.yml
+- deployment/grafana/dashboards/fraud_api.json
+- src/monitoring/metrics.py
+
+Representative metrics:
+- api_requests_total
+- api_request_latency_seconds
+- fraud_predictions_total
+- risk_tier_total
+- decision_recommendations_total
+- fraud_alerts_total
+- fraud_cases_total
+- fraud_case_status_total
+- review_queue_size
+- confirmed_fraud_total
+- false_positive_total
+
+Monitoring evidence:
+- artifacts/deploys/Grafana-dashboard.png
+- artifacts/deploys/Prometheus-targets.png
+- artifacts/deploys/Prometheus-rules.png
+
 
-The selected deployable model for the current evidence pack is **logistic regression** (see `artifacts/models/model_info.json` and `artifacts/reports/model_selection_summary.json`).
+# 14. Deployment Architecture
 
----
+Container orchestration:
+- deployment/docker-compose.yml
 
-## 6. Risk Score Analysis (Calibration Discussion)
+Services:
+- API
+- Frontend
+- PostgreSQL
+- Prometheus
+- Grafana
+- MLflow
 
-### 6.1 Risk score semantics (critical)
+Current runtime verification:
+- Compose stack started successfully.
+- API endpoint returned healthy status with loaded model.
+- Container statuses show active services and healthy checks where defined.
 
-The API returns `risk_score ∈ [0,1]`, computed from `predict_proba`, but it must be treated as:
+Operational evidence:
+- artifacts/deploys/docker-compose.png
+- artifacts/deploys/docker-terminal.png
+- artifacts/deploys/swagger-docs.png
 
-**Risk score = an uncalibrated ranking signal used for prioritization, not a calibrated probability of fraud.**
 
-This is explicit in the model metadata (`artifacts/models/model_info.json` → `score_semantics: "risk_score_uncalibrated"`) and surfaced through `/health` and `/predict` (`src/api/main.py`).
+# 15. Testing and Validation
 
-### 6.2 Why it is not a probability
+Test suites:
+- tests/unit
+- tests/data
+- tests/model
+- tests/integration
+- tests/test_frontend_api.py
+- tests/verify_system.py
 
-Even though the output is bounded in `[0,1]`, several factors prevent probability claims:
+Latest verified results in this environment:
+- Unit plus data tests: 14 passed.
+- Integration tests: 17 passed.
 
-- class imbalance and reweighting change the effective learning objective,
-- calibration is not validated or enforced (no calibration curve/Brier score gate),
-- dataset shift is not modeled (random split, no time-aware stress test),
-- decision policy uses ranking (top-K capacity), which does not require calibrated probabilities.
+CI and quality gates:
+- .github/workflows/ci.yml
+- .github/workflows/docker.yml
+- Coverage gate configured with minimum threshold.
 
-### 6.3 What would be required for probability claims (production gap)
 
-To interpret outputs as probabilities, a production system would require post-hoc calibration (e.g., isotonic or Platt scaling), stability analysis over time, and monitoring of calibration error under drift. This project does not implement those, and therefore does not claim probabilistic semantics.
+# 16. Responsible AI
 
----
+Responsible AI scope includes:
+- Transparency of score semantics.
+- Human-in-the-loop handling through alert and case workflow.
+- Explainability artifacts and reason code support.
+- Privacy and ethical risk discussion.
 
-## 7. Decision Layer (Threshold Strategy)
+Current stance:
+- score_semantics explicitly documented as uncalibrated.
+- Reason codes are decision-support aids and not causal proof.
+- Full fairness validation is constrained by dataset attribute limitations.
 
-### 7.1 Primary policy: capacity-driven top-K tiering
+Primary document:
+- docs/RESPONSIBLE_AI.md
 
-The deployed decision strategy is a **two-tier capacity policy** recorded in `artifacts/models/model_info.json`:
 
-- **Review tier:** flag approximately the top 1% of transactions by risk score (`review_top_rate = 0.01`, `threshold_review ≈ 0.7391`).
-- **High tier:** flag approximately the top 0.2% by risk score (`high_top_rate = 0.002`, `threshold_high ≈ 0.9999`).
+# 17. Implementation Status
 
-This policy is defensible because it ties model outputs to operational capacity: the system can guarantee that the review queue size is proportional to traffic volume, even when the fraud base rate changes.
+Implemented:
+- End-to-end scoring and decision API.
+- risk_tier and decision_recommendation logic.
+- Alert and case lifecycle endpoints.
+- Timeline endpoint and frontend integration.
+- Monitoring instrumentation and deployment configs.
+- Automated testing across core layers.
+- Model version and run tracking logs for each training run.
 
-### 7.2 Offline comparator: F1-optimal threshold
+Partially implemented:
+- Full dashboard coverage for every newly added operational metric.
+- Runtime verification depth for every environment variant.
 
-For reference only (not the primary deployment policy), the workflow records an F1-optimal threshold derived from validation (`threshold_f1 = 0.99` in `artifacts/models/model_info.json`). This comparator is useful to demonstrate the difference between:
+Demo-level:
+- In-memory case persistence default mode.
+- Heuristic reason-code logic for portions of explanation layer.
 
-- a **metric-optimal** threshold on a fixed test regime, and
-- a **capacity-optimal** threshold that meets operational constraints.
+Future work:
+- Durable persistence as default mode.
+- Stronger auth and RBAC hardening.
+- Drift monitoring and retraining orchestration.
 
-### 7.3 Test operating-point evidence (final model)
 
-From `artifacts/models/model_info.json` (test split):
+# 18. Limitations
 
-- **Review tier (top-K):** precision ≈ 0.1462, recall ≈ 0.8514 (large review volume; high recall).
-- **High tier (top-K):** precision ≈ 0.8429, recall ≈ 0.7973 (smaller volume; higher precision).
-- **Average Precision (AP / PR-AUC):** ≈ 0.7694; **ROC-AUC:** ≈ 0.9652.
+Current limitations:
+- Default case persistence mode is non-durable unless SQL mode is explicitly used.
+- risk_score is a ranking signal and not calibrated probability.
+- Some operational behaviors are tuned for demo and educational scope.
+- Cross-environment consistency still depends on local dependency and artifact compatibility.
 
-These operating points show the intended “funnel”: a broad review queue for recall and a narrow high-risk tier for strong interventions.
+Known practical constraints:
+- Model artifact compatibility can vary across library versions.
+- Local setup differences may require artifact regeneration.
 
----
 
-## 8. System Architecture
+# 19. Future Work
 
-The system follows a layered architecture:
+Priority roadmap:
+- Make SQL-backed persistence the default operational mode.
+- Add robust auth, RBAC, and audit policy enforcement.
+- Add drift detection and model health governance loops.
+- Build closed-loop retraining from confirmed case outcomes.
+- Expand frontend and monitoring to full analyst operations depth.
+- Add stronger production runbooks and SLO-oriented alerting.
 
-1. **Training + benchmarking** produces model artifacts and evidence (`src/pipelines/run_model_workflow.py`, `artifacts/`).
-2. **Serving API** loads artifacts and exposes `/predict`, `/health`, `/metrics` (`src/api/main.py`, `src/models/loader.py`).
-3. **Frontend dashboard** calls the live API and displays tiered decisions (`frontend/`).
-4. **Observability stack** scrapes metrics and renders dashboards/alerts (`deployment/prometheus/*`, `deployment/grafana/*`).
 
-This separation is production-aligned: model iteration is offline, serving is online, and the dashboard is a consumer of the serving contract.
+# 20. Conclusion
 
----
+The project currently delivers a complete fraud decision-support system across ML, API, frontend, monitoring, deployment, and testing domains.
 
-## 9. API & Serving Layer
+It is implementation-aligned, evidence-backed, and suitable for academic submission and live demonstration.
 
-The API is implemented in FastAPI with Pydantic schemas (`src/api/main.py`, `src/api/schemas.py`).
+The remaining work is primarily production hardening, persistence defaulting, and governance automation rather than core feature completion.
 
-Key endpoints:
 
-- `GET /health`: returns model/version/threshold metadata.
-- `POST /predict`: accepts `features` (ordered vector) or `features_by_name`, returns `risk_score`, `risk_tier`, and `action`.
-- `GET /metrics`: Prometheus metrics endpoint.
-- `GET /stream/pull`: returns already-scored simulated stream events (see Section 11).
+## Documentation Cleanup Summary
 
-The API enforces an input contract to prevent silent errors: feature length mismatch yields HTTP 422.
+Removed duplicates by consolidation:
+- Repeated runtime workflow explanations across README, PROJECT_OVERVIEW, and multiple docs reports.
+- Repeated endpoint lists in architecture, overview, and execution reports.
+- Repeated deployment and quick-start command blocks.
+- Repeated model-metric narratives spread across audit and final reports.
 
----
+Resolved conflicts:
+- Standardized terminology to risk_score, risk_tier, decision_recommendation, alert, case.
+- Resolved runtime status by using latest verified evidence from current session.
+- Clarified persistence as in-memory demo default with SQL capability present.
+- Standardized score semantics as uncalibrated ranking signal.
 
-## 10. Frontend & Decision Interface
-
-The dashboard is a decision-support UI, not a “fraud confirmation UI”. It:
-
-- polls backend health to display model/version/policy metadata,
-- streams scored events from `/stream/pull`,
-- visualizes tiered decisions (LOW/REVIEW/HIGH) and actions (allow/review/block),
-- allows basic queue handling for review cases (frontend-only).
-
-The UI includes explicit copy that `risk_score` is **not** a fraud probability (`frontend/index.html`, `frontend/ui.js`).
-
----
-
-## 11. Streaming & Simulation
-
-Streaming is implemented as a **simulation** suitable for demo and stress testing, not as a production ingestion pipeline.
-
-- `/stream/pull` returns time-ordered synthetic or dataset-backed events generated by `src/streaming/simulator.py`.
-- The simulator includes burst traffic and rare “attack windows” to emulate operational spikes.
-- Ground truth labels are not returned from the stream endpoint, preventing a misleading “oracle” demo behavior.
-
-Production-grade streaming would require an event bus, exactly-once/at-least-once semantics, deduplication, and delayed label ingestion. These are out of scope for this project and documented as a production gap.
-
----
-
-## 12. Monitoring & Observability
-
-The API exposes Prometheus metrics (`src/monitoring/metrics.py`), and Docker Compose provisions:
-
-- Prometheus scrape configuration and alert rules (`deployment/prometheus/prometheus.yml`, `deployment/prometheus/alerts.yml`),
-- Grafana dashboards (`deployment/grafana/dashboards/fraud_api.json`).
-
-This supports real system signals (latency, error rates, prediction tiers), which is required to argue “production awareness.”
-
----
-
-## 13. Testing & CI/CD
-
-The repository includes unit and integration tests (`tests/`) and a CI pipeline with an 80% coverage gate (`.github/workflows/ci.yml`). The test suite validates:
-
-- API contracts and error handling,
-- dataset sampling behavior and “no labels leakage” in public endpoints,
-- model-loading behavior and artifact presence.
-
-Docker builds and Compose configuration are validated in CI (`.github/workflows/docker.yml`).
-
----
-
-## 14. Responsible AI
-
-The project includes a Responsible AI document (`RESPONSIBLE_AI.md`) with:
-
-- fairness limits due to missing protected attributes in the dataset,
-- proxy slice recommendations (amount/time buckets),
-- explainability artifacts (SHAP for LightGBM and coefficient-based importance for logistic regression),
-- privacy stance and recommended logging policy.
-
-The report avoids claiming demographic fairness guarantees given the dataset constraints.
-
----
-
-## 15. Limitations & Production Gap
-
-This project is demo-grade and must be presented honestly:
-
-- no authentication/rate limiting in the API,
-- no drift detection or retraining automation,
-- random stratified split rather than time-aware evaluation,
-- simulation-based streaming rather than real ingestion,
-- no calibrated probability claims.
-
-These are acceptable for DDM501 if clearly stated, justified, and scoped as future work rather than hidden assumptions.
-
----
-
-## 16. Conclusion
-
-This project demonstrates an end-to-end fraud detection system that is more than “a model”: it is a **policy-driven decision service** with artifacts, observability, tests, and deployment configuration. The strongest technical contribution is the explicit separation of:
-
-1. **risk scoring** (ranking signal), and  
-2. **decision intelligence** (tiered actions constrained by operational capacity).
-
-The remaining work to reach production readiness is primarily in calibration, time-aware validation, security, and drift/feedback-loop design, all of which are clearly identified.
-
+Merged sections:
+- Introduction and project framing.
+- Architecture and module mapping.
+- Dataset and ML workflow details.
+- Evaluation and decision policy narrative.
+- Backend, frontend, monitoring, and deployment details.
+- Testing, Responsible AI, status classification, limitations, and roadmap.

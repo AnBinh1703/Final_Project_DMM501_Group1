@@ -34,10 +34,12 @@ from src.data.samples import resolve_dataset_path, sample_dataset_rows
 from src.features.random_features import generate_random_features
 from src.models.loader import maybe_load_model_from_env
 from src.monitoring.metrics import (
+    flush_runtime_tracking,
     record_alert_created,
     record_case_status,
     record_prediction,
     record_response,
+    runtime_tracking_status,
     set_review_queue_size,
     track_request,
 )
@@ -90,6 +92,7 @@ async def lifespan(app: FastAPI):
 
     yield
 
+    flush_runtime_tracking()
     app.state.loaded_model = None
     app.state.stream_simulator = None
     app.state.case_service = None
@@ -246,6 +249,7 @@ async def health() -> dict:
         "fraud_base_rate": loaded.fraud_base_rate if loaded else None,
         "case_repository_mode": case_service.persistence_mode if case_service is not None else None,
         "review_queue_size": queue_size,
+        "mlflow_runtime_tracking": runtime_tracking_status(),
     }
 
 

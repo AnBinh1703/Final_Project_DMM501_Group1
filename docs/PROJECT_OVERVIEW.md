@@ -1,61 +1,58 @@
-# Project Overview
+<!-- markdownlint-disable MD032 MD031 -->
+
+# Project Overview (One-File Preview)
 
 ## Real-Time Banking Transaction Fraud Detection and Decision Support System
 
-Repository: Final_Project_DMM501_Group1
-Program: DDM501 Final Project
-Date: 2026-04-18
+Repository: `Final_Project_DMM501_Group1`  
+Program: `DDM501 Final Project`  
+Updated: `2026-04-19`
 
-## Executive Summary
+## 1) What This Project Does
 
-This repository now implements a decision-support workflow, not only a classifier endpoint.
+This system is an end-to-end fraud decision-support platform, not only a classifier endpoint.
 
-Implemented runtime flow:
-Incoming Transaction -> Input Validation -> Feature Preparation -> ML Risk Scoring -> Decision Recommendation -> Reason Code Generation -> Alert/Case Creation (for REVIEW/HIGH) -> Case Lifecycle Tracking -> Timeline Events -> Monitoring Metrics -> Frontend Visualization
+Runtime handling flow:
 
-## What Is Actually Implemented
+Incoming Transaction -> Input Validation -> Feature Preparation -> ML Risk Scoring -> Decision Policy (LOW/REVIEW/HIGH) -> Recommendation + Reason Codes -> Alert/Case Creation (for REVIEW/HIGH) -> Case Lifecycle Updates -> Timeline Events -> Metrics -> Frontend Visualization
 
-- ML scoring API with strict input contract checks
-- Decision tiering (`LOW`, `REVIEW`, `HIGH`)
-- Decision recommendations (`ALLOW`, `STEP_UP_AUTH`, `MANUAL_REVIEW`, `HOLD`, `BLOCK`)
-- Reason-code engine (demo-level heuristic + policy-derived)
-- Alert APIs and case APIs with lifecycle updates
-- Timeline endpoint for case investigation history
-- Frontend integration for queue, status transitions, and timeline
-- Operational metrics (alerts/cases/status/queue) and additional Prometheus rules
-- Automated tests covering lifecycle workflow
+## 2) System Components
 
-## Honest Classification
+Core modules:
+- API: `src/api/main.py`
+- Schemas: `src/api/schemas.py`
+- Scoring service: `src/services/scoring_service.py`
+- Decision service: `src/services/decision_service.py`
+- Reason code service: `src/services/reason_code_service.py`
+- Case service: `src/services/case_service.py`
+- Repository: `src/repositories/in_memory_case_repository.py`
+- Monitoring metrics: `src/monitoring/metrics.py`
+- Frontend: `frontend/index.html`, `frontend/app.js`, `frontend/ui.js`, `frontend/api-client.js`
+- Training workflow: `src/pipelines/run_model_workflow.py`
+- Deployment: `deployment/docker-compose.yml`
 
-- Fully implemented:
-  - scoring, decision policy, alerts/cases/timeline APIs, frontend workflow integration, tests
-- Partially implemented:
-  - Grafana panel coverage for newly added operational metrics
-- Demo-level simulated:
-  - in-memory case persistence (non-durable)
-- Proposed future enhancement:
-  - durable DB persistence, auth/RBAC, retraining feedback loop, drift automation
+## 3) Model and Decision Framing
 
-## Model and Score Framing
+Current deployed metadata from `/health` and `artifacts/models/model_info.json`:
+- `model_type`: `logistic_regression_pipeline`
+- `model_version`: `final_model`
+- `expected_features`: `30`
+- `threshold_review`: `0.7391262534904803`
+- `threshold_high`: `0.9999047447184487`
+- `score_semantics`: `risk_score_uncalibrated`
 
-Current deployed artifact metadata indicates:
-- model type: logistic_regression_pipeline
-- selected model: logistic_regression
-- score semantics: risk_score_uncalibrated
-- threshold policy loaded from `artifacts/models/model_info.json`
+Important interpretation:
+- `risk_score` is a ranking signal and is not treated as a calibrated probability.
 
-Important:
-`risk_score` is an uncalibrated ranking signal and is not claimed as calibrated fraud probability.
+## 4) API Surface (Implemented)
 
-## API Surface Summary
-
-Core endpoints:
+Scoring and system:
 - `POST /predict`
 - `GET /health`
 - `GET /metrics`
 - `GET /stream/pull`
 
-Operational endpoints:
+Case and alert operations:
 - `GET /alerts`
 - `GET /alerts/{alert_id}`
 - `POST /alerts/{alert_id}/status`
@@ -65,62 +62,99 @@ Operational endpoints:
 - `POST /cases/{case_id}/resolve`
 - `GET /cases/{case_id}/timeline`
 
-## Frontend Scope
+Data utility:
+- `GET /features/schema`
+- `GET /features/random`
+- `GET /dataset/samples`
+- `GET /internal/dataset/samples` (token-protected)
 
-The frontend now supports:
-- alert queue view
-- case table with lifecycle status and decision recommendation
-- case detail panel with reason codes
-- timeline visualization
-- analyst actions: move to review, confirm fraud, mark false positive, resolve
+## 5) Frontend Behavior
 
-## Monitoring Scope
+Frontend supports:
+- live queue and fraud feed
+- case status transitions
+- reason-code display
+- timeline view per case
+- streaming simulation modes
 
-Technical metrics:
-- request counts
-- latency histograms
-- prediction/tier/action metrics
+Frontend screenshots and artifacts:
+- `artifacts/figures/frontend_dashboard_live.png`
+- `artifacts/figures/frontend_dashboard_streaming.png`
 
-Operational metrics:
-- `fraud_alerts_total`
-- `fraud_cases_total`
-- `fraud_case_status_total`
-- `decision_recommendations_total`
-- `risk_tier_total`
-- `confirmed_fraud_total`
-- `false_positive_total`
-- `review_queue_size`
+## 6) Monitoring and Deployment
 
-## Verification State
+Monitoring stack:
+- Prometheus: `deployment/prometheus/prometheus.yml`
+- Alert rules: `deployment/prometheus/alerts.yml`
+- Grafana dashboards: `deployment/grafana/dashboards/fraud_api.json`
+
+Compose services:
+- `api` (8000)
+- `frontend` (8082)
+- `postgres` (5432)
+- `prometheus` (9090)
+- `grafana` (3000)
+- `mlflow` (5000)
+
+## 7) Current Verification (Evidence in This Session)
 
 Verified now:
-- Full test suite passed (`30 passed`)
-- Integration tests include lifecycle and timeline workflow
-- Docker Compose configuration renders successfully
+- Unit + data tests passed: `14 passed`
+- Integration tests passed: `17 passed`
+- Docker Compose runtime healthy for all six services
+- API health returned `status=ok` and `model_loaded=true`
 
-Not verified now:
-- Full runtime `docker compose up --build` stack execution in this session
-- Manual browser walkthrough after latest UI code changes
+Notes from runtime:
+- Case repository mode currently reports `in_memory_demo`
+- This is demo-level persistence and non-durable by design
 
-## Key Documents
+## 8) Honest Status Classification
+
+Fully implemented:
+- scoring, decision policy, alerts/cases/timeline APIs, frontend integration, tests, compose deployment
+
+Partially implemented:
+- complete Grafana panel depth for all new operational metrics
+
+Demo-level simulated:
+- in-memory case persistence
+
+Future enhancements:
+- durable SQL persistence as default
+- auth/RBAC/rate limiting hardening in all environments
+- closed-loop retraining from confirmed outcomes
+- drift detection and governance automation
+
+## 9) Quick Run and Verify
+
+Run local stack:
+```bash
+docker compose -f deployment/docker-compose.yml up --build -d
+```
+
+Check health:
+```bash
+curl -s http://127.0.0.1:8000/health
+```
+
+Run tests in selected venv:
+```bash
+python -m pytest -q tests/unit tests/data
+python -m pytest -q tests/integration
+```
+
+Stop stack:
+```bash
+docker compose -f deployment/docker-compose.yml down --remove-orphans
+```
+
+## 10) Key Documents
 
 - `README.md`
 - `ARCHITECTURE.md`
-- `SYSTEM_SPECIFICATION_DOCUMENT.md`
-- `RESPONSIBLE_AI.md`
-- `DEPLOYMENT_REPORT.md`
+- `docs/QUICK_START.md`
+- `docs/RESPONSIBLE_AI.md`
+- `docs/FINAL_REPORT_EVIDENCE_BASED.md`
 - `docs/FINAL_DECISION_SUPPORT_UPGRADE_REPORT.md`
 
-## Feature Status Matrix
-
-| Feature | Backend Status | Frontend Status | Deployment Status | Overall |
-|---|---|---|---|---|
-| Fraud scoring | Implemented | Integrated | Ready | Fully implemented |
-| Decision recommendations | Implemented | Integrated | Ready | Fully implemented |
-| Reason codes | Implemented (heuristic) | Integrated | Ready | Partially implemented |
-| Alert queue | Implemented | Integrated | Ready | Fully implemented |
-| Case lifecycle | Implemented | Integrated | Ready | Fully implemented |
-| Investigation timeline | Implemented | Integrated | Ready | Fully implemented |
-| Durable persistence | Not implemented | N/A | Not ready | Proposed |
-| Auth/RBAC | Not implemented | Not implemented | Not ready | Proposed |
-| Retraining feedback loop | Not implemented | N/A | Not ready | Proposed |
+This file is intended to be the single high-level preview for reviewers, teammates, and presentation preparation.

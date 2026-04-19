@@ -126,19 +126,30 @@
       // Case details
       this.el.caseCardEmpty = $('caseCardEmpty');
       this.el.caseCard = $('caseCard');
+      this.el.caseId = $('caseId');
+      this.el.caseAlertId = $('caseAlertId');
       this.el.caseRequestId = $('caseRequestId');
+      this.el.caseTransactionId = $('caseTransactionId');
       this.el.caseTimestamp = $('caseTimestamp');
+      this.el.caseStatus = $('caseStatus');
       this.el.caseRisk = $('caseRisk');
+      this.el.caseDecisionRecommendation = $('caseDecisionRecommendation');
+      this.el.caseDecisionExplanation = $('caseDecisionExplanation');
       this.el.caseProb = $('caseProb');
       this.el.caseThr = $('caseThr');
       this.el.caseAmount = $('caseAmount');
+      this.el.caseReasonCodes = $('caseReasonCodes');
       this.el.caseCopyPayloadBtn = $('caseCopyPayloadBtn');
       this.el.caseRescoreBtn = $('caseRescoreBtn');
-      this.el.caseToggleHandledBtn = $('caseToggleHandledBtn');
+      this.el.caseSetInReviewBtn = $('caseSetInReviewBtn');
+      this.el.caseConfirmFraudBtn = $('caseConfirmFraudBtn');
+      this.el.caseFalsePositiveBtn = $('caseFalsePositiveBtn');
+      this.el.caseResolveBtn = $('caseResolveBtn');
       this.el.caseNoteInput = $('caseNoteInput');
       this.el.caseSaveNoteBtn = $('caseSaveNoteBtn');
       this.el.caseNoteSavedText = $('caseNoteSavedText');
       this.el.caseFeatures = $('caseFeatures');
+      this.el.caseTimeline = $('caseTimeline');
     }
 
     setConnectionStatus({ connected, modelLoaded, message }) {
@@ -278,7 +289,8 @@
         tr.classList.add('selectable');
         tr.addEventListener('click', () => {
           if (window.FraudDashboard && typeof window.FraudDashboard.openCase === 'function') {
-            window.FraudDashboard.openCase(entry.id, { switchToReview: true });
+            const targetCaseId = entry.caseId != null ? entry.caseId : entry.id;
+            window.FraudDashboard.openCase(targetCaseId, { switchToReview: true });
           }
         });
       }
@@ -338,13 +350,14 @@
       el.style.cursor = 'pointer';
       el.addEventListener('click', () => {
         if (window.FraudDashboard && typeof window.FraudDashboard.openCase === 'function') {
-          window.FraudDashboard.openCase(alert.id, { switchToReview: true });
+          const targetCaseId = alert.caseId != null ? alert.caseId : alert.id;
+          window.FraudDashboard.openCase(targetCaseId, { switchToReview: true });
         }
       });
 
       const id = document.createElement('div');
       id.className = 'id';
-      id.textContent = alert.requestId;
+      id.textContent = alert.alertId || alert.requestId || '-';
 
       const ts = document.createElement('div');
       ts.className = 'ts';
@@ -357,7 +370,8 @@
       const risk = document.createElement('div');
       const badge = document.createElement('span');
       badge.className = `badge ${riskToBadgeClass(alert.riskLevel)}`;
-      badge.textContent = `${alert.riskLevel} • ${money(alert.amount)}`;
+      const statusText = alert.caseStatus ? String(alert.caseStatus) : '-';
+      badge.textContent = `${alert.riskLevel} • ${statusText}`;
       risk.appendChild(badge);
 
       el.appendChild(id);
@@ -412,7 +426,7 @@
         const tr = document.createElement('tr');
         tr.id = 'reviewEmptyRow';
         const td = document.createElement('td');
-        td.colSpan = 6;
+        td.colSpan = 8;
         td.className = 'muted center';
         td.textContent = 'No cases yet.';
         tr.appendChild(td);
@@ -433,7 +447,7 @@
         const tr = document.createElement('tr');
         tr.id = 'reviewEmptyRow';
         const td = document.createElement('td');
-        td.colSpan = 6;
+        td.colSpan = 8;
         td.className = 'muted center';
         td.textContent = 'No cases match the current filters.';
         tr.appendChild(td);
@@ -452,26 +466,28 @@
       for (const c of cases) {
         const tr = document.createElement('tr');
         tr.classList.add('selectable');
-        tr.dataset.caseId = String(c.id);
-        if (String(c.id) === String(selectedId)) tr.classList.add('selected');
+        tr.dataset.caseId = String(c.caseId || c.id);
+        if (String(c.caseId || c.id) === String(selectedId)) tr.classList.add('selected');
 
         tr.appendChild(td(c.timestamp, 'mono'));
-        tr.appendChild(td(shortId(c.requestId), 'mono'));
+        tr.appendChild(td(shortId(c.caseId || '-'), 'mono'));
+        tr.appendChild(td(shortId(c.transactionId || '-'), 'mono'));
         tr.appendChild(td(money(c.amount), 'right mono'));
         tr.appendChild(td(riskText(c.riskScore, c.riskPercentile), 'right mono'));
 
-        const riskTd = document.createElement('td');
+        const tierTd = document.createElement('td');
         const badge = document.createElement('span');
         badge.className = `badge ${riskToBadgeClass(c.riskLevel)}`;
         badge.textContent = c.riskLevel;
-        riskTd.appendChild(badge);
-        tr.appendChild(riskTd);
+        tierTd.appendChild(badge);
+        tr.appendChild(tierTd);
 
-        tr.appendChild(td(c.handled ? 'yes' : 'no', c.handled ? 'muted' : ''));
+        tr.appendChild(td(String(c.caseStatus || '-'), 'mono'));
+        tr.appendChild(td(String(c.decisionRecommendation || '-'), 'mono'));
 
         tr.addEventListener('click', () => {
           if (window.FraudDashboard && typeof window.FraudDashboard.openCase === 'function') {
-            window.FraudDashboard.openCase(c.id, { switchToReview: false });
+            window.FraudDashboard.openCase(c.caseId || c.id, { switchToReview: false });
           }
         });
 
@@ -483,16 +499,30 @@
       const has = Boolean(caseObj);
       if (this.el.caseCardEmpty) this.el.caseCardEmpty.style.display = has ? 'none' : '';
       if (this.el.caseCard) this.el.caseCard.style.display = has ? '' : 'none';
-      if (!has) return;
+      if (!has) {
+        if (this.el.caseTimeline) this.el.caseTimeline.innerHTML = '<li class="muted">No timeline events.</li>';
+        return;
+      }
 
-      this.el.caseRequestId.textContent = caseObj.requestId;
-      this.el.caseTimestamp.textContent = caseObj.timestamp;
+      if (this.el.caseId) this.el.caseId.textContent = caseObj.caseId || '-';
+      if (this.el.caseAlertId) this.el.caseAlertId.textContent = caseObj.alertId || '-';
+      if (this.el.caseRequestId) this.el.caseRequestId.textContent = caseObj.requestId || '-';
+      if (this.el.caseTransactionId) this.el.caseTransactionId.textContent = caseObj.transactionId || '-';
+      if (this.el.caseTimestamp) this.el.caseTimestamp.textContent = caseObj.timestamp || '-';
+      if (this.el.caseStatus) this.el.caseStatus.textContent = caseObj.caseStatus || '-';
 
       const badge = document.createElement('span');
       badge.className = `badge ${riskToBadgeClass(caseObj.riskLevel)}`;
       badge.textContent = caseObj.riskLevel;
       this.el.caseRisk.innerHTML = '';
       this.el.caseRisk.appendChild(badge);
+
+      if (this.el.caseDecisionRecommendation) this.el.caseDecisionRecommendation.textContent = caseObj.decisionRecommendation || '-';
+      if (this.el.caseDecisionExplanation) this.el.caseDecisionExplanation.textContent = caseObj.decisionExplanation || '-';
+      if (this.el.caseReasonCodes) {
+        const reasons = Array.isArray(caseObj.reasonCodes) ? caseObj.reasonCodes : [];
+        this.el.caseReasonCodes.textContent = reasons.length ? reasons.join(', ') : '-';
+      }
 
       this.el.caseProb.textContent = riskText(caseObj.riskScore, caseObj.riskPercentile);
       this.el.caseThr.textContent = (typeof caseObj.thresholdReview === 'number' && typeof caseObj.thresholdHigh === 'number')
@@ -503,12 +533,30 @@
       this.el.caseNoteInput.value = caseObj.note || '';
       this.el.caseNoteSavedText.textContent = caseObj.noteSavedAt ? `saved ${caseObj.noteSavedAt}` : '';
 
-      this.el.caseToggleHandledBtn.textContent = caseObj.handled ? 'Mark Unhandled' : 'Mark Handled';
-      this.el.caseToggleHandledBtn.className = caseObj.handled ? 'btn btn-secondary' : 'btn btn-primary';
-
       // Features
       const feats = Array.isArray(caseObj.features) ? caseObj.features : [];
       this.el.caseFeatures.textContent = JSON.stringify(feats);
+
+      if (this.el.caseTimeline) {
+        const timeline = Array.isArray(caseObj.timeline) ? caseObj.timeline : [];
+        if (!timeline.length) {
+          this.el.caseTimeline.innerHTML = '<li class="muted">No timeline events.</li>';
+        } else {
+          this.el.caseTimeline.innerHTML = '';
+          for (const item of timeline) {
+            const li = document.createElement('li');
+            const evt = document.createElement('div');
+            evt.className = 'mono';
+            evt.textContent = `${item.event_time_utc || '-'} • ${item.event_type || '-'}`;
+            const actor = document.createElement('div');
+            actor.className = 'muted';
+            actor.textContent = item.actor ? `actor=${item.actor}` : '';
+            li.appendChild(evt);
+            if (actor.textContent) li.appendChild(actor);
+            this.el.caseTimeline.appendChild(li);
+          }
+        }
+      }
     }
 
     drawChart({ points, thresholdReview, thresholdHigh }) {

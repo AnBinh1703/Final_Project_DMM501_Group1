@@ -88,6 +88,8 @@
 
   const state = {
     apiBaseUrl: DEFAULT_API,
+    apiKey: 'analyst-token',
+    actor: 'frontend-analyst',
     connected: false,
     modelLoaded: false,
     modelVersion: null,
@@ -124,7 +126,7 @@
 
     // Review filters + pagination
     reviewRiskFilter: 'all', // all | Review | High
-    reviewHandledFilter: 'unhandled', // unhandled | all | handled
+    reviewHandledFilter: 'open', // open | all | CONFIRMED_FRAUD | FALSE_POSITIVE | RESOLVED
     reviewSearch: '',
     reviewPage: 1,
     reviewPageSize: 10,
@@ -138,6 +140,8 @@
     return {
       // Common controls
       apiBaseUrlInput: document.getElementById('apiBaseUrlInput'),
+      apiKeyInput: document.getElementById('apiKeyInput'),
+      actorInput: document.getElementById('actorInput'),
       applyApiBtn: document.getElementById('applyApiBtn'),
       modeSelect: document.getElementById('modeSelect'),
       speedSelect: document.getElementById('speedSelect'),
@@ -165,7 +169,10 @@
       // Case actions
       caseCopyPayloadBtn: document.getElementById('caseCopyPayloadBtn'),
       caseRescoreBtn: document.getElementById('caseRescoreBtn'),
-      caseToggleHandledBtn: document.getElementById('caseToggleHandledBtn'),
+      caseSetInReviewBtn: document.getElementById('caseSetInReviewBtn'),
+      caseConfirmFraudBtn: document.getElementById('caseConfirmFraudBtn'),
+      caseFalsePositiveBtn: document.getElementById('caseFalsePositiveBtn'),
+      caseResolveBtn: document.getElementById('caseResolveBtn'),
       caseSaveNoteBtn: document.getElementById('caseSaveNoteBtn'),
     };
   }
@@ -212,6 +219,7 @@
       refreshHeader();
       ui.clearError();
       setButtons();
+      if (state.activeView === 'review') refreshCaseQueueFromApi().catch(() => {});
       return body;
     } catch (err) {
       state.connected = false;
@@ -277,14 +285,24 @@
 
   function filterCases() {
     const risk = state.reviewRiskFilter;
-    const handled = state.reviewHandledFilter;
+    const statusFilter = state.reviewHandledFilter;
     const q = String(state.reviewSearch || '').trim().toLowerCase();
+    const openStatuses = new Set(['NEW', 'QUEUED', 'IN_REVIEW', 'ESCALATED']);
 
     return state.caseItems.filter((c) => {
       if (risk !== 'all' && c.riskLevel !== risk) return false;
-      if (handled === 'handled' && !c.handled) return false;
-      if (handled === 'unhandled' && c.handled) return false;
-      if (q && !String(c.requestId || '').toLowerCase().includes(q)) return false;
+      const caseStatus = String(c.caseStatus || '').toUpperCase();
+
+      if (statusFilter === 'open') {
+        if (!openStatuses.has(caseStatus)) return false;
+      } else if (statusFilter !== 'all') {
+        if (caseStatus !== String(statusFilter).toUpperCase()) return false;
+      }
+
+      if (q) {
+        const haystack = [c.caseId, c.requestId, c.transactionId].map(v => String(v || '').toLowerCase()).join(' ');
+        if (!haystack.includes(q)) return false;
+      }
       return true;
     });
   }
@@ -305,7 +323,10 @@
     state.activeView = view === 'review' ? 'review' : 'dashboard';
     ui.setActiveView(state.activeView);
     if (state.activeView === 'dashboard') renderFeed({ incremental: false });
-    else renderReview();
+    else {
+      refreshCaseQueueFromApi().catch(() => {});
+      renderReview();
+    }
   }
 
   function addFeedItem(item) {
@@ -314,6 +335,9 @@
   }
 
   function addCaseItem(item) {
+    const key = String(item.caseId || item.id);
+    const existingIdx = state.caseItems.findIndex(c => String(c.caseId || c.id) === key);
+    if (existingIdx >= 0) state.caseItems.splice(existingIdx, 1);
     state.caseItems.unshift(item);
     if (state.caseItems.length > MAX_CASE_ITEMS) state.caseItems.pop();
   }
@@ -321,16 +345,161 @@
   function getCaseById(id) {
     if (id == null) return null;
     const s = String(id);
-    return state.caseItems.find(c => String(c.id) === s) || null;
+    return state.caseItems.find(c => String(c.caseId || c.id) === s) || null;
   }
 
   function openCase(id, { switchToReview } = {}) {
     state.feedSelectedId = id;
     state.reviewSelectedId = id;
 
+    if (id != null) {
+      refreshCaseFromApi(id).catch(() => {});
+    }
+
     if (switchToReview) switchView('review');
     else if (state.activeView === 'dashboard') renderFeed({ incremental: false });
     else renderReview();
+  }
+
+  function mapApiCaseToEntry(caseBody, timeline) {
+    const tier = String(caseBody.risk_tier || 'LOW');
+    const riskLabel = tierToUiLabel(tier);
+    const ts = caseBody.transaction_timestamp || DashboardUIUtil.formatIsoTime(new Date());
+    return {
+      id: String(caseBody.case_id || caseBody.request_id || state.nextId++),
+      caseId: caseBody.case_id || null,
+      alertId: caseBody.alert_id || null,
+      requestId: caseBody.request_id || '-',
+      transactionId: caseBody.transaction_id || null,
+      timestamp: ts,
+      amount: (typeof caseBody.amount === 'number') ? caseBody.amount : null,
+      riskScore: (typeof caseBody.risk_score === 'number') ? caseBody.risk_score : null,
+      riskPercentile: null,
+      riskTier: tier,
+      riskLevel: riskLabel,
+      action: caseBody.legacy_action || tierToAction(tier),
+      decisionRecommendation: caseBody.decision_recommendation || null,
+      decisionExplanation: null,
+      reasonCodes: Array.isArray(caseBody.reason_codes) ? caseBody.reason_codes : [],
+      caseStatus: caseBody.case_status || null,
+      thresholdReview: state.thresholdReview,
+      thresholdHigh: state.thresholdHigh,
+      latencyMs: null,
+      status: 'OK',
+      source: 'case-api',
+      features: Array.isArray(caseBody.features) ? caseBody.features : [],
+      note: caseBody.analyst_note || '',
+      noteSavedAt: caseBody.updated_at || null,
+      timeline: Array.isArray(timeline) ? timeline : (Array.isArray(caseBody.timeline) ? caseBody.timeline : []),
+    };
+  }
+
+  async function refreshCaseFromApi(caseId) {
+    if (!caseId) return null;
+    try {
+      const [caseBody, timelineBody] = await Promise.all([
+        api.getCase(caseId),
+        api.getCaseTimeline(caseId),
+      ]);
+      const entry = mapApiCaseToEntry(caseBody, timelineBody.timeline);
+      addCaseItem(entry);
+      if (state.activeView === 'review') renderReview();
+      return entry;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function renderAlertsSnapshot(alerts) {
+    const list = ui.el && ui.el.alertsList ? ui.el.alertsList : null;
+    if (!list) return;
+
+    const children = Array.from(list.children);
+    for (const c of children) {
+      if (!c || c.id === 'alertsEmpty' || c === ui.el.alertsEmpty) continue;
+      list.removeChild(c);
+    }
+    if (ui.el.alertsEmpty) ui.el.alertsEmpty.style.display = '';
+
+    for (let i = alerts.length - 1; i >= 0; i--) {
+      const a = alerts[i];
+      ui.prependAlert(a);
+    }
+  }
+
+  async function refreshCaseQueueFromApi() {
+    if (!state.connected || !state.modelLoaded) return;
+
+    try {
+      const [casesResp, alertsResp] = await Promise.all([
+        api.listCases({ limit: 400 }),
+        api.listAlerts({ limit: 40 }),
+      ]);
+
+      state.caseItems = (casesResp.cases || []).map(c => mapApiCaseToEntry(c, c.timeline));
+      const alertItems = (alertsResp.alerts || []).map((a) => {
+        const level = tierToUiLabel(a.risk_tier);
+        return {
+          id: a.alert_id,
+          alertId: a.alert_id,
+          caseId: a.case_id,
+          requestId: a.request_id,
+          timestamp: a.transaction_timestamp,
+          amount: a.amount,
+          riskScore: a.risk_score,
+          riskPercentile: null,
+          riskTier: a.risk_tier,
+          riskLevel: level,
+          action: a.legacy_action,
+          caseStatus: a.case_status,
+        };
+      });
+      renderAlertsSnapshot(alertItems);
+
+      if (state.reviewSelectedId != null) {
+        const exists = state.caseItems.some(c => String(c.caseId || c.id) === String(state.reviewSelectedId));
+        if (!exists) state.reviewSelectedId = null;
+      }
+      if (state.activeView === 'review') renderReview();
+    } catch (_) {
+      // Keep dashboard resilient when queue endpoints are temporarily unavailable.
+    }
+  }
+
+  async function applyCaseStatusChange({ nextStatus = null, resolution = null } = {}) {
+    const c = getCaseById(state.reviewSelectedId);
+    if (!c || !c.caseId) {
+      ui.showError('No selected case available for status update.');
+      return;
+    }
+
+    const note = ui.el.caseNoteInput ? String(ui.el.caseNoteInput.value || '') : '';
+
+    try {
+      let body;
+      if (resolution) {
+        body = await api.resolveCase(c.caseId, {
+          resolution,
+          analystNote: note,
+          actor: state.actor,
+        });
+      } else {
+        body = await api.updateCaseStatus(c.caseId, {
+          caseStatus: nextStatus,
+          analystNote: note,
+          actor: state.actor,
+        });
+      }
+
+      const updated = mapApiCaseToEntry(body, body.timeline);
+      addCaseItem(updated);
+      state.reviewSelectedId = updated.caseId || updated.id;
+      if (ui.el.caseNoteSavedText) ui.el.caseNoteSavedText.textContent = `updated ${DashboardUIUtil.formatIsoTime(new Date())}`;
+      renderReview();
+      refreshCaseQueueFromApi().catch(() => {});
+    } catch (err) {
+      ui.showError(err && err.message ? err.message : String(err));
+    }
   }
 
   function recordApiPrediction({ result, tx, timestamp }) {
@@ -348,6 +517,9 @@
     const id = state.nextId++;
     const entry = {
       id,
+      caseId: result.case_id || null,
+      alertId: result.alert_id || null,
+      transactionId: result.transaction_id || null,
       timestamp,
       requestId: result.request_id,
       amount: tx.amount,
@@ -355,6 +527,10 @@
       riskPercentile: null,
       riskTier: tier,
       action,
+      decisionRecommendation: result.decision_recommendation || null,
+      decisionExplanation: result.decision_explanation || null,
+      reasonCodes: Array.isArray(result.reason_codes) ? result.reason_codes : [],
+      caseStatus: result.case_status || null,
       thresholdReview: result.threshold_review,
       thresholdHigh: result.threshold_high,
       riskLevel: riskLabel,
@@ -363,9 +539,9 @@
       source: tx.source,
       features: tx.features,
 
-      handled: false,
       note: '',
       noteSavedAt: null,
+      timeline: [],
     };
 
     addFeedItem(entry);
@@ -391,6 +567,8 @@
       addCaseItem(entry);
       ui.prependAlert({
         id: entry.id,
+        alertId: entry.alertId,
+        caseId: entry.caseId,
         requestId: entry.requestId,
         riskScore: entry.riskScore,
         riskPercentile: entry.riskPercentile,
@@ -398,8 +576,13 @@
         riskLevel: entry.riskLevel,
         riskTier: entry.riskTier,
         action: entry.action,
+        caseStatus: entry.caseStatus,
         timestamp: entry.timestamp,
       });
+
+      if (entry.caseId) {
+        refreshCaseFromApi(entry.caseId).catch(() => {});
+      }
 
       if (state.activeView === 'review') {
         // If user is reviewing, refresh the review list to include new incoming cases.
@@ -430,6 +613,9 @@
     const id = state.nextId++;
     const entry = {
       id,
+      caseId: event.case_id || null,
+      alertId: event.alert_id || null,
+      transactionId: event.transaction_id || null,
       timestamp: event.event_time_utc,
       requestId: `stream:${event.event_id}`,
       amount: (typeof event.amount === 'number') ? event.amount : null,
@@ -437,6 +623,10 @@
       riskPercentile: (typeof event.risk_percentile === 'number') ? event.risk_percentile : null,
       riskTier: tier,
       action,
+      decisionRecommendation: event.decision_recommendation || null,
+      decisionExplanation: event.decision_explanation || null,
+      reasonCodes: Array.isArray(event.reason_codes) ? event.reason_codes : [],
+      caseStatus: event.case_status || null,
       thresholdReview: batch.threshold_review,
       thresholdHigh: batch.threshold_high,
       riskLevel: riskLabel,
@@ -445,9 +635,9 @@
       source: event.source || 'stream',
       features: event.features,
 
-      handled: false,
       note: '',
       noteSavedAt: null,
+      timeline: [],
     };
 
     addFeedItem(entry);
@@ -471,6 +661,8 @@
       addCaseItem(entry);
       ui.prependAlert({
         id: entry.id,
+        alertId: entry.alertId,
+        caseId: entry.caseId,
         requestId: entry.requestId,
         riskScore: entry.riskScore,
         riskPercentile: entry.riskPercentile,
@@ -478,8 +670,13 @@
         riskLevel: entry.riskLevel,
         riskTier: entry.riskTier,
         action: entry.action,
+        caseStatus: entry.caseStatus,
         timestamp: entry.timestamp,
       });
+
+      if (entry.caseId) {
+        refreshCaseFromApi(entry.caseId).catch(() => {});
+      }
 
       if (state.activeView === 'review') renderReview();
     }
@@ -508,7 +705,6 @@
       status: 'ERROR',
       source: tx && tx.source ? tx.source : '-',
       features: tx && Array.isArray(tx.features) ? tx.features : null,
-      handled: false,
       note: '',
       noteSavedAt: null,
     };
@@ -639,7 +835,7 @@
     state.reviewPage = 1;
     state.reviewSelectedId = null;
     state.reviewRiskFilter = 'all';
-    state.reviewHandledFilter = 'unhandled';
+    state.reviewHandledFilter = 'open';
     state.reviewSearch = '';
 
     DemoData.reset();
@@ -648,7 +844,7 @@
     try {
       const e = els();
       if (e.reviewRiskFilter) e.reviewRiskFilter.value = 'all';
-      if (e.reviewHandledFilter) e.reviewHandledFilter.value = 'unhandled';
+      if (e.reviewHandledFilter) e.reviewHandledFilter.value = 'open';
       if (e.reviewSearchInput) e.reviewSearchInput.value = '';
     } catch (_) { /* ignore */ }
 
@@ -662,11 +858,18 @@
   }
 
   function applyApiBaseUrl() {
-    const { apiBaseUrlInput } = els();
+    const { apiBaseUrlInput, apiKeyInput, actorInput } = els();
     const next = normalizeBaseUrl(apiBaseUrlInput ? apiBaseUrlInput.value : DEFAULT_API);
+    const nextApiKey = apiKeyInput ? String(apiKeyInput.value || '').trim() : '';
+    const nextActor = actorInput ? String(actorInput.value || '').trim() : 'frontend-analyst';
     state.apiBaseUrl = next;
+    state.apiKey = nextApiKey;
+    state.actor = nextActor || 'frontend-analyst';
     api.setBaseUrl(next);
+    api.setAuth({ apiKey: state.apiKey, actor: state.actor });
     try { localStorage.setItem('fraud_api_url', next); } catch (_) { /* ignore */ }
+    try { localStorage.setItem('fraud_api_key', state.apiKey); } catch (_) { /* ignore */ }
+    try { localStorage.setItem('fraud_actor', state.actor); } catch (_) { /* ignore */ }
     pollHealthOnce().catch(() => {});
   }
 
@@ -680,6 +883,12 @@
     // API base URL
     e.applyApiBtn.addEventListener('click', applyApiBaseUrl);
     e.apiBaseUrlInput.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') applyApiBaseUrl();
+    });
+    e.apiKeyInput.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') applyApiBaseUrl();
+    });
+    e.actorInput.addEventListener('keydown', (ev) => {
       if (ev.key === 'Enter') applyApiBaseUrl();
     });
 
@@ -719,7 +928,7 @@
       renderReview();
     });
     e.reviewHandledFilter.addEventListener('change', () => {
-      state.reviewHandledFilter = e.reviewHandledFilter.value || 'unhandled';
+      state.reviewHandledFilter = e.reviewHandledFilter.value || 'open';
       state.reviewPage = 1;
       renderReview();
     });
@@ -779,28 +988,43 @@
       }
     });
 
-    e.caseToggleHandledBtn.addEventListener('click', () => {
-      const c = getCaseById(state.reviewSelectedId);
-      if (!c) return;
-      c.handled = !c.handled;
-      renderReview();
+    e.caseSetInReviewBtn.addEventListener('click', () => {
+      applyCaseStatusChange({ nextStatus: 'IN_REVIEW' }).catch(() => {});
+    });
+
+    e.caseConfirmFraudBtn.addEventListener('click', () => {
+      applyCaseStatusChange({ resolution: 'CONFIRMED_FRAUD' }).catch(() => {});
+    });
+
+    e.caseFalsePositiveBtn.addEventListener('click', () => {
+      applyCaseStatusChange({ resolution: 'FALSE_POSITIVE' }).catch(() => {});
+    });
+
+    e.caseResolveBtn.addEventListener('click', () => {
+      applyCaseStatusChange({ resolution: 'RESOLVED' }).catch(() => {});
     });
 
     e.caseSaveNoteBtn.addEventListener('click', () => {
       const c = getCaseById(state.reviewSelectedId);
-      if (!c) return;
-      const note = ui.el.caseNoteInput ? String(ui.el.caseNoteInput.value || '') : '';
-      c.note = note;
-      c.noteSavedAt = DashboardUIUtil.formatIsoTime(new Date());
-      renderReview();
+      if (!c || !c.caseId) return;
+      const currentStatus = c.caseStatus || 'IN_REVIEW';
+      applyCaseStatusChange({ nextStatus: currentStatus }).catch(() => {});
     });
   }
 
   function initFromStorage() {
-    let stored = null;
-    try { stored = localStorage.getItem('fraud_api_url'); } catch (_) { /* ignore */ }
-    state.apiBaseUrl = normalizeBaseUrl(stored || DEFAULT_API);
+    let storedUrl = null;
+    let storedApiKey = null;
+    let storedActor = '';
+    try { storedUrl = localStorage.getItem('fraud_api_url'); } catch (_) { /* ignore */ }
+    try { storedApiKey = localStorage.getItem('fraud_api_key'); } catch (_) { /* ignore */ }
+    try { storedActor = String(localStorage.getItem('fraud_actor') || ''); } catch (_) { /* ignore */ }
+
+    state.apiBaseUrl = normalizeBaseUrl(storedUrl || DEFAULT_API);
+    state.apiKey = typeof storedApiKey === 'string' ? String(storedApiKey).trim() : 'analyst-token';
+    state.actor = String(storedActor || '').trim() || 'frontend-analyst';
     api = new ApiClient(state.apiBaseUrl);
+    api.setAuth({ apiKey: state.apiKey, actor: state.actor });
   }
 
   function readQueryParams() {
@@ -851,6 +1075,8 @@
 
     const e = els();
     e.apiBaseUrlInput.value = state.apiBaseUrl;
+    if (e.apiKeyInput) e.apiKeyInput.value = state.apiKey;
+    if (e.actorInput) e.actorInput.value = state.actor;
     state.intervalMs = parseInt(e.speedSelect.value, 10) || 1000;
     state.mode = e.modeSelect.value === 'random' ? 'random' : 'real';
 

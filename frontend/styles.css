@@ -173,6 +173,8 @@ select:focus,input:focus{outline:none; box-shadow:0 0 0 3px rgba(96,165,250,.18)
 }
 .api-config label{font-size:12px;color:var(--muted);font-weight:800}
 .api-config input{min-width:280px}
+.api-config .api-token-input{min-width:220px}
+.api-config .actor-input{min-width:170px}
 
 .action-row{display:flex;gap:10px;flex-wrap:wrap}
 .btn{
@@ -391,6 +393,23 @@ tbody tr.selected{outline:2px solid rgba(96,165,250,0.55); outline-offset:-2px}
   background:rgba(2,6,23,0.35);
   overflow:auto;
   max-height:260px;
+}
+
+.timeline-list{
+  list-style:none;
+  margin:10px 0 0 0;
+  padding:0;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  max-height:220px;
+  overflow:auto;
+}
+.timeline-list li{
+  border:1px solid rgba(148,163,184,0.16);
+  border-radius:10px;
+  padding:8px 10px;
+  background:rgba(2,6,23,0.30);
 }
 
 .app-footer{

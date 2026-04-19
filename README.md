@@ -1,220 +1,142 @@
-# Real-Time Fraud Detection ML System
+# Real-Time Banking Fraud Detection and Decision Support System
 
-[![CI](https://github.com/AnBinh1703/Final_Project_DMM501_Group1/actions/workflows/ci.yml/badge.svg)](https://github.com/AnBinh1703/Final_Project_DMM501_Group1/actions/workflows/ci.yml)
-[![Docker](https://github.com/AnBinh1703/Final_Project_DMM501_Group1/actions/workflows/docker.yml/badge.svg)](https://github.com/AnBinh1703/Final_Project_DMM501_Group1/actions/workflows/docker.yml)
+Repository: Final_Project_DMM501_Group1
 
-End-to-end ML system for near-real-time fraud scoring on tabular financial transactions:
+This project is an end-to-end ML-powered fraud decision-support platform for banking transactions.
 
-- ML pipeline: data ingestion, train/evaluate, threshold tuning, artifacts
-- Experiment tracking: MLflow (local file backend in this repo)
-- Serving: FastAPI `/predict` with Prometheus metrics
-- Deployment: Docker + Docker Compose (API + frontend + MLflow + Prometheus + Grafana)
-- Monitoring: Prometheus scrape + Grafana dashboard + alert rules
-- Testing: unit + integration + data quality + model validation, with coverage gate
+It is not only a binary classifier demo.
 
-See `ARCHITECTURE.md` for system design and `CONTRIBUTING.md` for team workflow.
-For a step-by-step run guide (Local + Docker), see `QUICK_START.md`.
+The runtime workflow implemented in the API is:
+Incoming Transaction -> Validation -> Feature Preparation -> Risk Scoring -> Decision Policy -> Reason Codes -> Alert/Case Creation -> Case Lifecycle Tracking -> Timeline Events -> Metrics
 
-## Problem Definition
+## Current Implementation Status
 
-### Business context
-Card and payment fraud causes direct financial loss and operational cost. A fraud scoring service helps:
+Implemented now:
+- ML risk scoring API with strict feature validation
+- Decision policy engine with LOW/REVIEW/HIGH tiers
+- Decision recommendations (`ALLOW`, `STEP_UP_AUTH`, `MANUAL_REVIEW`, `HOLD`, `BLOCK`)
+- Reason-code generation (demo-level heuristic + policy-based)
+- Alert and case lifecycle APIs
+- Investigation timeline per case
+- Frontend queue/detail/timeline integration
+- Prometheus metrics and alerts for operational workflow
+- Docker Compose configuration for API, frontend, Prometheus, Grafana, MLflow
+- Test suite with integration coverage for case workflow
 
-- reduce fraud loss by flagging risky transactions earlier
-- reduce manual review cost by prioritizing suspicious transactions
-- reduce customer friction by calibrating thresholds to control false positives
+Partially implemented:
+- Frontend runtime manually verified in this session: not executed (code aligned, tests passing)
+- Grafana dashboard panels for all newly added case metrics: partial
 
-### Personas
-- **Risk Operations Analyst**: needs an interpretable risk score plus threshold-based tiers (review vs high-risk auto action)
-- **Backend/Platform Engineer**: needs a stable, observable API with clear deployment steps
-- **Compliance/Audit**: needs explainability artifacts and documented limitations
+Demo-level simulated:
+- Persistence layer for alerts/cases is in-memory (non-durable)
 
-### Primary use cases
-1. Score a single transaction in milliseconds (API call) and return an **uncalibrated risk score** plus a **decision** (tier + action), not confirmed fraud.
-2. Monitor service health/latency/error-rate and the fraud score distribution.
-3. Re-train and version the model; deploy a new artifact with defined review/high thresholds.
+Future enhancement:
+- Durable DB persistence
+- Auth/RBAC and rate limiting
+- Closed-loop retraining from case outcomes
+- Drift detection and model governance automation
 
-## Requirements
+## Verified in This Session
 
-### Functional requirements
-| ID | Requirement | Priority |
-|---|---|---|
-| F1 | Provide `/predict` endpoint that returns `risk_score` plus tiered decision (`risk_tier`, `action`) | Must |
-| F2 | Provide `/health` endpoint including `model_loaded` and `model_version` | Must |
-| F3 | Provide `/metrics` Prometheus endpoint | Must |
-| F4 | Provide training pipeline that produces a loadable model artifact + metadata | Must |
-| F5 | Provide experiment tracking using MLflow | Should |
-| F6 | Provide dashboards (Grafana) and alerting rules (Prometheus) | Must |
-| F7 | Provide basic demo frontend calling the API | Could |
+- Full test suite passed: `30 passed`
+- New integration workflow test passed for:
+  - `/predict` -> flagged case
+  - `/alerts` and `/alerts/{id}`
+  - `/alerts/{id}/status`
+  - `/cases/{id}/resolve`
+  - `/cases/{id}/timeline`
+- Docker Compose config validated with `docker compose config`
 
-### Non-functional requirements
-| ID | Requirement | Priority |
-|---|---|---|
-| N1 | p95 API latency <= 500ms for single request on a laptop-class environment | Should |
-| N2 | Error rate < 1% under steady local demo load | Should |
-| N3 | Containerized deployment with Compose and health checks | Must |
-| N4 | CI runs tests and enforces coverage gate | Must |
-| N5 | Responsible AI documentation (fairness, privacy, ethics, explainability) | Must |
+## Core API Endpoints
 
-## Success Metrics (Targets)
+### Scoring and System Endpoints
+- `POST /predict`
+- `GET /health`
+- `GET /metrics`
+- `GET /stream/pull`
 
-These are demo-grade targets aligned to imbalanced fraud detection.
+### Alert and Case Endpoints
+- `GET /alerts`
+- `GET /alerts/{alert_id}`
+- `POST /alerts/{alert_id}/status`
+- `GET /cases`
+- `GET /cases/{case_id}`
+- `POST /cases/{case_id}/status`
+- `POST /cases/{case_id}/resolve`
+- `GET /cases/{case_id}/timeline`
 
-### Business metrics
-- **PR-AUC (proxy for review efficiency)**: target >= 0.75 on held-out test set (dataset-dependent)
-- **Decision policy (capacity-driven)**: thresholds selected via a **top-K review-rate** policy (e.g., review top 1%, block top 0.2%); report precision/recall at those operating points.
+### Data Utility Endpoints
+- `GET /features/schema`
+- `GET /features/random`
+- `GET /dataset/samples`
+- `GET /internal/dataset/samples` (token-protected)
 
-### System metrics
-- **p95 latency** (`api_request_latency_seconds`): target <= 0.5 seconds
-- **5xx error rate**: target < 5% (alert threshold; see Prometheus rules)
+## Score Semantics
 
-### Model metrics
-- **PR-AUC** and **ROC-AUC** on test split
-- **Recall** at tuned threshold (trade-off vs precision; threshold is a business decision)
+`risk_score` is explicitly treated as:
+`risk_score_uncalibrated`
 
-## Repository Layout
+This is a ranking signal, not a calibrated fraud probability.
 
-- `src/api`: FastAPI app (`/predict`, `/health`, `/metrics`)
-- `src/pipelines`: training workflow scripts
-- `src/monitoring`: Prometheus metrics
-- `deployment/`: Dockerfiles, Compose, Prometheus and Grafana configs
-- `tests/`: unit + integration + data + model tests
+## Local Quick Start
 
-## Quickstart (Local, No Docker)
-
-### 1) Setup Python environment
+### 1) Environment
 ```bash
-python -m venv .venv
-. .venv/bin/activate
-python -m pip install -U pip
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
-pip install pytest-cov
 ```
 
-### 2) Train a model and create artifacts
-
-Option A (recommended for quick demo): synthetic dataset
+### 2) Train/refresh artifacts (optional if artifacts already exist)
 ```bash
-python -m src.pipelines.train_pipeline --data-path "" --artifacts-dir artifacts
+python -m src.pipelines.run_model_workflow \
+  --data-path data/archive/creditcard.csv \
+  --artifacts-root artifacts
 ```
 
-Option B: Kaggle Credit Card Fraud dataset (not stored in this repo)
-- Place CSV at `data/raw/creditcard.csv` with target column `Class`
+### 3) Run API
 ```bash
-python -m src.pipelines.train_pipeline --data-path data/raw/creditcard.csv --artifacts-dir artifacts
-```
-
-Artifacts created:
-- `artifacts/model.joblib` (loadable model)
-- `artifacts/model_info.json` (threshold_review/high, version, n_features)
-- `artifacts/metrics_report.json` (evaluation metrics)
-
-### 3) Run the API with the model loaded
-```bash
-MODEL_PATH=artifacts/models/final_model.joblib \
-MODEL_VERSION=final-model \
 uvicorn src.api.main:app --host 0.0.0.0 --port 8000
 ```
 
-Notes:
-- By default, thresholds are loaded from `artifacts/models/model_info.json` next to the model artifact.
-- Optional overrides (for demos only): set `REVIEW_THRESHOLD` and/or `FRAUD_THRESHOLD`.
-
-### 4) Use the API
-Health:
+### 4) Run frontend
 ```bash
-curl -s http://localhost:8000/health | jq
+cd frontend
+python3 -m http.server 8082 --bind 127.0.0.1
 ```
 
-Swagger UI:
-- `http://localhost:8000/docs`
-
-Export OpenAPI:
+### 5) Run tests
 ```bash
-curl -s http://localhost:8000/openapi.json -o openapi.json
+python -m pytest -q
 ```
 
-Predict:
-```bash
-curl -s http://localhost:8000/features/random?mode=creditcard | jq '{features:.features}' > payload.json
-curl -s http://localhost:8000/predict -H 'Content-Type: application/json' -d @payload.json | jq
-```
+## Docker Compose
 
-Error cases:
-- `503` if model is not loaded (missing/invalid `MODEL_PATH`)
-- `422` if feature vector length does not match training metadata
-
-### 5) Run tests + coverage gate
-```bash
-pytest -q --cov=src --cov-report=term-missing --cov-fail-under=80
-```
-
-## Docker (Single Services)
-
-API image:
-```bash
-docker build -f deployment/api/Dockerfile -t fraud-api .
-docker run --rm -p 8000:8000 \
-  -e MODEL_PATH=/app/artifacts/models/final_model.joblib \
-  -v "$PWD/artifacts:/app/artifacts" \
-  fraud-api
-```
-
-Frontend image:
-```bash
-docker build -f deployment/frontend/Dockerfile -t fraud-frontend .
-docker run --rm -p 8080:8080 fraud-frontend
-```
-
-## Docker Compose (Full Stack)
-
-1) Generate artifacts locally (required so the API can load a model):
-```bash
-python -m src.pipelines.train_pipeline --data-path "" --artifacts-dir artifacts
-```
-
-2) Start stack:
 ```bash
 docker compose -f deployment/docker-compose.yml up --build
 ```
 
-Service URLs:
-- API: `http://localhost:8000` (Swagger: `/docs`, Metrics: `/metrics`)
-- Frontend: `http://localhost:8080`
-- MLflow: `http://localhost:5000`
-- Prometheus: `http://localhost:9090`
-- Grafana: `http://localhost:3000` (admin/admin by default)
+Service ports:
+- API: 8000
+- Frontend: 8082
+- Prometheus: 9090
+- Grafana: 3000
+- MLflow: 5000
 
-## Monitoring
+## Documentation Map
 
-Grafana dashboard is auto-provisioned:
-- Dashboard: **Fraud Detection API Monitoring**
-- Primary panels: RPS, p95 latency, average fraud score, label distribution
+Primary upgrade and audit report:
+- `docs/FINAL_DECISION_SUPPORT_UPGRADE_REPORT.md`
 
-Alert rules are loaded by Prometheus from `deployment/prometheus/alerts.yml`:
-- High 5xx error rate
-- High p95 latency
-- Prediction rate anomaly
+Architecture and specification:
+- `ARCHITECTURE.md`
+- `SYSTEM_SPECIFICATION_DOCUMENT.md`
+- `PROJECT_OVERVIEW.md`
+- `RESPONSIBLE_AI.md`
+- `DEPLOYMENT_REPORT.md`
 
-## Responsible AI
+## Important Notes for Evaluators
 
-See `RESPONSIBLE_AI.md` for:
-- fairness and bias analysis (and limitations)
-- explainability via SHAP artifacts
-- privacy considerations and logging stance
-- ethics risks and mitigations
-
-## Demo Script (5–7 minutes)
-1. Train model (synthetic) to produce `artifacts/` outputs.
-2. Start Compose stack.
-3. Show API `/health` and Swagger `/docs`.
-4. Call `/predict` from Swagger or curl; show response includes `model_version` and thresholds (review/high).
-5. Open Prometheus and Grafana; show live request rate and latency.
-6. Show `artifacts/metrics_report.json` and Responsible AI doc.
-
-## Notes
-- The real Kaggle dataset CSV is excluded by `.gitignore` to keep the repo light; place it locally when running real-data experiments.
-- For full benchmarking + SHAP artifact generation on real dataset, run:
-  ```bash
-  python -m src.pipelines.run_model_workflow --data-path data/raw/creditcard.csv --artifacts-root artifacts
-  ```
+- Claims in docs are aligned to implementation and tests in this branch.
+- If a capability is not runtime-verified in this environment, it is labeled explicitly.
+- Case persistence is currently in-memory by design for demo and testability.

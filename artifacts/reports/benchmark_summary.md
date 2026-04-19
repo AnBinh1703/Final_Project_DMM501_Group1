@@ -1,6 +1,6 @@
 # Model Benchmark Summary
 
-- Dataset: `data/archive/creditcard.csv`
+- Dataset: `data\archive\creditcard.csv`
 - Selected model (validation-only): **logistic_regression**
 - Threshold policy: top-K rates (review/high) = 1.00% / 0.20%
 - Thresholds (review/high): 0.74 / 1.00

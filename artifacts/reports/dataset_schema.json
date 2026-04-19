@@ -1,5 +1,5 @@
 {
-  "dataset_path": "data/archive/creditcard.csv",
+  "dataset_path": "data\\archive\\creditcard.csv",
   "shape": [
     284807,
     31

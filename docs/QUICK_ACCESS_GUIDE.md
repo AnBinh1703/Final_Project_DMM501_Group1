@@ -190,10 +190,10 @@ Open [http://localhost:3000](http://localhost:3000) in browser
 
 ## 🔐 Security Notes
 
-**Current (Demo):**
-- ✅ No authentication required
-- ✅ No rate limiting
-- ✅ Localhost only (CORS restricted)
+**Current (Configurable):**
+- ✅ Authentication and RBAC are supported (env-toggle and token mapping)
+- ✅ Rate limiting is supported (env-toggle)
+- ✅ Localhost-friendly CORS defaults are enabled
 
 **For Production:**
 - Add JWT/API key authentication
@@ -211,7 +211,7 @@ Open [http://localhost:3000](http://localhost:3000) in browser
 | ARCHITECTURE.md | System design & components |
 | QUICK_START.md | Detailed setup guide |
 | DEPLOYMENT_REPORT.md | Deployment verification |
-| SYSTEM_STATUS_REPORT_UPDATED.md | Current system status |
+| FINAL_REPORT_EVIDENCE_BASED.md | Evidence-based final report |
 | RESPONSIBLE_AI.md | Fairness, privacy, ethics |
 
 ---

@@ -115,22 +115,44 @@ From \code{artifacts/reports/class_distribution.json}:
 
 \subsection{Data quality notes (evidence)}
 From \code{artifacts/reports/eda_summary.json}: duplicate rows = 1081. Missing value counts are exported to \code{artifacts/reports/missing_values.csv}.
+Figures \ref{fig:class_dist}, \ref{fig:amount_dist}, and \ref{fig:time_dist} summarize the imbalance and transaction distributions used as input assumptions for model and threshold selection.
 
 \subsection{Embedded dataset figures}
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.75\linewidth]{../artifacts/figures/class_distribution.png}
   \caption{Class distribution (Fraud vs Non-fraud). Source: \code{artifacts/figures/class_distribution.png}}
+  \label{fig:class_dist}
 \end{figure}
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.85\linewidth]{../artifacts/figures/amount_distribution.png}
   \caption{Amount distribution. Source: \code{artifacts/figures/amount_distribution.png}}
+  \label{fig:amount_dist}
 \end{figure}
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.85\linewidth]{../artifacts/figures/time_distribution.png}
   \caption{Time distribution. Source: \code{artifacts/figures/time_distribution.png}}
+  \label{fig:time_dist}
+\end{figure}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\linewidth]{../artifacts/figures/fraud_vs_nonfraud_amount.png}
+  \caption{Fraud vs non-fraud amount patterns. Source: \code{artifacts/figures/fraud_vs_nonfraud_amount.png}}
+  \label{fig:fraud_amount}
+\end{figure}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\linewidth]{../artifacts/figures/fraud_vs_nonfraud_time.png}
+  \caption{Fraud vs non-fraud time patterns. Source: \code{artifacts/figures/fraud_vs_nonfraud_time.png}}
+  \label{fig:fraud_time}
+\end{figure}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.9\linewidth]{../artifacts/figures/correlation_overview.png}
+  \caption{Feature correlation overview. Source: \code{artifacts/figures/correlation_overview.png}}
+  \label{fig:corr_overview}
 \end{figure}
 
 \section{ML Pipeline}
@@ -211,30 +233,69 @@ From \code{artifacts/reports/model_validation_checks.json}:
 \end{itemize}
 
 \subsection{Embedded evaluation figures}
+Figures \ref{fig:base_roc}--\ref{fig:model_cmp} compare baseline and improved candidate behavior.
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.8\linewidth]{../artifacts/figures/baseline_roc_curve.png}
   \caption{Baseline ROC curve. Source: \code{artifacts/figures/baseline_roc_curve.png}}
+  \label{fig:base_roc}
 \end{figure}
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.8\linewidth]{../artifacts/figures/baseline_pr_curve.png}
   \caption{Baseline PR curve. Source: \code{artifacts/figures/baseline_pr_curve.png}}
+  \label{fig:base_pr}
 \end{figure}
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.8\linewidth]{../artifacts/figures/improved_roc_curve.png}
   \caption{Improved ROC curve (LightGBM). Source: \code{artifacts/figures/improved_roc_curve.png}}
+  \label{fig:imp_roc}
 \end{figure}
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.8\linewidth]{../artifacts/figures/improved_pr_curve.png}
   \caption{Improved PR curve (LightGBM). Source: \code{artifacts/figures/improved_pr_curve.png}}
+  \label{fig:imp_pr}
 \end{figure}
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.9\linewidth]{../artifacts/figures/model_comparison.png}
   \caption{Model comparison (tuned metrics). Source: \code{artifacts/figures/model_comparison.png}}
+  \label{fig:model_cmp}
+\end{figure}
+
+\subsection{Final deployable model diagnostics}
+The selected deployable model diagnostics are shown in Figures \ref{fig:final_roc}, \ref{fig:final_pr}, and \ref{fig:final_cm}. Feature-importance evidence is provided in Figures \ref{fig:final_imp} and \ref{fig:improved_imp} for baseline and LightGBM interpretation comparison.
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.82\linewidth]{../artifacts/figures/final_roc_curve.png}
+  \caption{Final model ROC curve. Source: \code{artifacts/figures/final_roc_curve.png}}
+  \label{fig:final_roc}
+\end{figure}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.82\linewidth]{../artifacts/figures/final_pr_curve.png}
+  \caption{Final model PR curve. Source: \code{artifacts/figures/final_pr_curve.png}}
+  \label{fig:final_pr}
+\end{figure}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.72\linewidth]{../artifacts/figures/final_confusion_matrix.png}
+  \caption{Final model confusion matrix. Source: \code{artifacts/figures/final_confusion_matrix.png}}
+  \label{fig:final_cm}
+\end{figure}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\linewidth]{../artifacts/figures/final_feature_importance.png}
+  \caption{Final model feature importance. Source: \code{artifacts/figures/final_feature_importance.png}}
+  \label{fig:final_imp}
+\end{figure}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\linewidth]{../artifacts/figures/improved_feature_importance.png}
+  \caption{Improved model feature importance (LightGBM). Source: \code{artifacts/figures/improved_feature_importance.png}}
+  \label{fig:improved_imp}
 \end{figure}
 
 \section{Threshold Tuning}
@@ -255,20 +316,24 @@ From the sweep tables (best-by-F1 on validation):
 \end{itemize}
 
 \subsection{Embedded threshold figures}
+Threshold behavior and cross-model operating-point differences are illustrated in Figures \ref{fig:base_thr}, \ref{fig:imp_thr}, and \ref{fig:thr_cmp}.
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.9\linewidth]{../artifacts/figures/baseline_threshold_sweep.png}
   \caption{Baseline threshold sweep. Source: \code{artifacts/figures/baseline_threshold_sweep.png}}
+  \label{fig:base_thr}
 \end{figure}
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.9\linewidth]{../artifacts/figures/improved_threshold_sweep.png}
   \caption{Improved threshold sweep. Source: \code{artifacts/figures/improved_threshold_sweep.png}}
+  \label{fig:imp_thr}
 \end{figure}
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.9\linewidth]{../artifacts/figures/threshold_comparison.png}
   \caption{Threshold comparison overlay (F1 curves). Source: \code{artifacts/figures/threshold_comparison.png}}
+  \label{fig:thr_cmp}
 \end{figure}
 
 \section{Model Explainability (SHAP)}
@@ -284,6 +349,7 @@ From the sweep tables (best-by-F1 on validation):
   \centering
   \includegraphics[width=0.95\linewidth]{../artifacts/figures/shap_summary.png}
   \caption{SHAP summary plot (LightGBM). Source: \code{artifacts/figures/shap_summary.png}}
+  \label{fig:shap_summary}
 \end{figure}
 
 \section{System Architecture (E2E flow)}
@@ -314,6 +380,7 @@ This diagram reflects the implemented structure described in \code{ARCHITECTURE.
     \draw[arrow] (prom) -- (graf);
   \end{tikzpicture}
   \caption{End-to-end architecture (implementation-aligned).}
+  \label{fig:e2e_arch}
 \end{figure}
 
 \subsection{Contract boundary (evidence)}
@@ -369,6 +436,13 @@ Real sample pool is fetched from the backend dataset endpoint (\code{GET /datase
   \centering
   \includegraphics[width=0.95\linewidth]{../artifacts/figures/frontend_dashboard_live.png}
   \caption{Frontend dashboard screenshot (connected to backend). Source: \code{artifacts/figures/frontend_dashboard_live.png}.}
+  \label{fig:frontend_live}
+\end{figure}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.95\linewidth]{../artifacts/figures/frontend_dashboard_streaming.png}
+  \caption{Frontend streaming mode screenshot. Source: \code{artifacts/figures/frontend_dashboard_streaming.png}.}
+  \label{fig:frontend_stream}
 \end{figure}
 \textbf{Note:} Headless screenshot capture does not reliably wait for asynchronous streaming updates; the screenshot shows a connected dashboard ready to stream. A live ``stream running'' screenshot is a TODO for manual capture during demo rehearsal.
 
@@ -408,13 +482,41 @@ high 5xx error rate, high p95 latency, and prediction-rate anomaly alerts.
 
 \subsection{Grafana dashboard (evidence)}
 Dashboard JSON: \code{deployment/grafana/dashboards/fraud_api.json}.  
-\textbf{Status:} \statusunverified{} runtime (Grafana not launched in this report generation).
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.92\linewidth]{../artifacts/deploys/Grafana-dashboard.png}
+  \caption{Grafana dashboard screenshot. Source: \code{artifacts/deploys/Grafana-dashboard.png}}
+  \label{fig:grafana_dash}
+\end{figure}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.92\linewidth]{../artifacts/deploys/Prometheus-targets.png}
+  \caption{Prometheus targets screenshot. Source: \code{artifacts/deploys/Prometheus-targets.png}}
+  \label{fig:prom_targets}
+\end{figure}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.92\linewidth]{../artifacts/deploys/Prometheus-rules.png}
+  \caption{Prometheus alert rules screenshot. Source: \code{artifacts/deploys/Prometheus-rules.png}}
+  \label{fig:prom_rules}
+\end{figure}
 
 \section{Deployment}
 \subsection{Docker Compose stack (evidence)}
 From \code{deployment/docker-compose.yml}, services include:
 API (8000), frontend (8080), MLflow (5000), Prometheus (9090), Grafana (3000).
-\textbf{Status:} \statusunverified{} runtime.
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.92\linewidth]{../artifacts/deploys/docker-compose.png}
+  \caption{Docker Compose stack evidence screenshot. Source: \code{artifacts/deploys/docker-compose.png}}
+  \label{fig:docker_compose}
+\end{figure}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.88\linewidth]{../artifacts/deploys/swagger-docs.png}
+  \caption{Swagger UI screenshot for API endpoint verification. Source: \code{artifacts/deploys/swagger-docs.png}}
+  \label{fig:swagger_docs}
+\end{figure}
 
 \subsection{Deployment contract (model + threshold)}
 Compose sets \code{MODEL_PATH=/app/artifacts/models/final_model.joblib} and \code{FRAUD_THRESHOLD="0.99"}. The API loader reads \code{model_info.json} next to the model artifact to obtain \code{n_features}, feature names, dataset path, and selection timestamp.

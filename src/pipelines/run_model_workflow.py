@@ -890,13 +890,13 @@ def build_parser() -> argparse.ArgumentParser:
         "--review-top-rate",
         type=float,
         default=0.01,
-        help="Manual review capacity as a fraction of total traffic (e.g., 0.01 = review top 1%)",
+        help="Manual review capacity as a fraction of total traffic (e.g., 0.01 = review top 1%%)",
     )
     parser.add_argument(
         "--high-top-rate",
         type=float,
         default=0.002,
-        help="Auto-action capacity as a fraction of total traffic (e.g., 0.002 = block top 0.2%)",
+        help="Auto-action capacity as a fraction of total traffic (e.g., 0.002 = block top 0.2%%)",
     )
     return parser
 

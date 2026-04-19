@@ -26,6 +26,8 @@ def test_stream_pull_returns_scored_events_without_labels(monkeypatch) -> None:
                 assert e["risk_tier"] in {"LOW", "REVIEW", "HIGH"}
                 assert e["action"] in {"allow", "review", "block"}
                 assert e["decision_label"] in {"ALLOW", "REVIEW", "BLOCK"}
+                assert e["decision_recommendation"] in {"ALLOW", "STEP_UP_AUTH", "MANUAL_REVIEW", "HOLD", "BLOCK"}
+                assert isinstance(e["reason_codes"], list)
 
     asyncio.run(run())
 

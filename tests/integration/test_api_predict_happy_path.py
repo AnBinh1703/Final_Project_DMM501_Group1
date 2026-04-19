@@ -38,6 +38,11 @@ def test_predict_200_when_model_loaded(monkeypatch) -> None:
             assert 0.0 <= float(body["risk_score"]) <= 1.0
             assert body["risk_tier"] in {"LOW", "REVIEW", "HIGH"}
             assert body["action"] in {"allow", "review", "block"}
+            assert body["decision_recommendation"] in {"ALLOW", "STEP_UP_AUTH", "MANUAL_REVIEW", "HOLD", "BLOCK"}
+            assert isinstance(body["decision_explanation"], str)
+            assert isinstance(body["reason_codes"], list)
+            assert isinstance(body["reason_summary"], str)
+            assert body["fraud_label"] in {0, 1}
             assert 0.0 <= float(body["threshold_review"]) <= float(body["threshold_high"]) <= 1.0
             assert isinstance(body["score_semantics"], str)
             assert int(body["n_features"]) == expected_features

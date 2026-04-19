@@ -1,4 +1,21 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: fraud_ops
+      POSTGRES_USER: fraud
+      POSTGRES_PASSWORD: fraud
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fraud -d fraud_ops"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
   api:
     build:
       context: ..
@@ -11,10 +28,21 @@ services:
       # For deployment, prefer using thresholds stored in artifacts/models/model_info.json.
       # (Override only when explicitly demonstrating policy changes.)
       MODEL_VERSION: creditcard-production-v1
+      CASE_REPOSITORY_MODE: postgres
+      CASE_DB_URL: postgresql+psycopg://fraud:fraud@postgres:5432/fraud_ops
+      CASE_DB_AUTO_MIGRATE: "true"
+      API_AUTH_ENABLED: "true"
+      API_TOKENS: viewer-token:viewer,analyst-token:analyst,admin-token:admin
+      RATE_LIMIT_ENABLED: "true"
+      RATE_LIMIT_REQUESTS: "240"
+      RATE_LIMIT_WINDOW_SECONDS: "60"
     volumes:
       - ../artifacts:/app/artifacts
     ports:
       - "${API_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 10s
@@ -86,5 +114,6 @@ services:
       - prometheus
 
 volumes:
+  postgres_data:
   mlflow_data:
   grafana_data:

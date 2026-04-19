@@ -34,6 +34,10 @@
     if (typeof body.risk_tier !== 'string') throw new Error('Invalid /predict response: missing risk_tier.');
     if (typeof body.action !== 'string') throw new Error('Invalid /predict response: missing action.');
     if (typeof body.decision_label !== 'string') throw new Error('Invalid /predict response: missing decision_label.');
+    if (typeof body.decision_recommendation !== 'string') throw new Error('Invalid /predict response: missing decision_recommendation.');
+    if (typeof body.decision_explanation !== 'string') throw new Error('Invalid /predict response: missing decision_explanation.');
+    if (!Array.isArray(body.reason_codes)) throw new Error('Invalid /predict response: missing reason_codes.');
+    if (typeof body.reason_summary !== 'string') throw new Error('Invalid /predict response: missing reason_summary.');
     if (typeof body.threshold_review !== 'number') throw new Error('Invalid /predict response: missing threshold_review.');
     if (typeof body.threshold_high !== 'number') throw new Error('Invalid /predict response: missing threshold_high.');
     if (typeof body.score_semantics !== 'string') throw new Error('Invalid /predict response: missing score_semantics.');
@@ -57,6 +61,29 @@
     if (typeof e.risk_tier !== 'string') throw new Error('Invalid /stream/pull response: missing risk_tier.');
     if (typeof e.action !== 'string') throw new Error('Invalid /stream/pull response: missing action.');
     if (typeof e.decision_label !== 'string') throw new Error('Invalid /stream/pull response: missing decision_label.');
+    if (typeof e.decision_recommendation !== 'string') throw new Error('Invalid /stream/pull response: missing decision_recommendation.');
+    if (!Array.isArray(e.reason_codes)) throw new Error('Invalid /stream/pull response: missing reason_codes.');
+    return body;
+  }
+
+  function assertAlertListShape(body) {
+    if (!body || typeof body !== 'object') throw new Error('Invalid /alerts response: not an object.');
+    if (typeof body.total !== 'number') throw new Error('Invalid /alerts response: missing total.');
+    if (!Array.isArray(body.alerts)) throw new Error('Invalid /alerts response: missing alerts array.');
+    return body;
+  }
+
+  function assertCaseListShape(body) {
+    if (!body || typeof body !== 'object') throw new Error('Invalid /cases response: not an object.');
+    if (typeof body.total !== 'number') throw new Error('Invalid /cases response: missing total.');
+    if (!Array.isArray(body.cases)) throw new Error('Invalid /cases response: missing cases array.');
+    return body;
+  }
+
+  function assertCaseShape(body) {
+    if (!body || typeof body !== 'object') throw new Error('Invalid case response: not an object.');
+    if (typeof body.case_id !== 'string') throw new Error('Invalid case response: missing case_id.');
+    if (typeof body.case_status !== 'string') throw new Error('Invalid case response: missing case_status.');
     return body;
   }
 
@@ -64,10 +91,24 @@
     constructor(baseUrl) {
       this.baseUrl = normalizeBaseUrl(baseUrl);
       this.defaultTimeoutMs = 3500;
+      this.apiKey = '';
+      this.actor = 'frontend-ui';
     }
 
     setBaseUrl(next) {
       this.baseUrl = normalizeBaseUrl(next);
+    }
+
+    setAuth({ apiKey = '', actor = 'frontend-ui' } = {}) {
+      this.apiKey = String(apiKey || '').trim();
+      this.actor = String(actor || '').trim() || 'frontend-ui';
+    }
+
+    _buildHeaders(extra = {}) {
+      const headers = { ...extra };
+      if (this.apiKey) headers.Authorization = `Bearer ${this.apiKey}`;
+      if (this.actor) headers['X-Actor'] = this.actor;
+      return headers;
     }
 
     async getHealth() {
@@ -76,7 +117,7 @@
       const url = `${this.baseUrl}/health`;
 
       try {
-        const resp = await fetch(url, { method: 'GET', signal: controller.signal });
+        const resp = await fetch(url, { method: 'GET', headers: this._buildHeaders(), signal: controller.signal });
         const text = await resp.text();
         const body = safeJsonParse(text);
 
@@ -107,7 +148,7 @@
       try {
         const resp = await fetch(url, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: this._buildHeaders({ 'Content-Type': 'application/json' }),
           body: payload,
           signal: controller.signal,
         });
@@ -137,7 +178,7 @@
       const url = `${this.baseUrl}/dataset/samples?n=${encodeURIComponent(String(n))}&strategy=${encodeURIComponent(String(strategy))}&seed=${encodeURIComponent(String(seed))}`;
 
       try {
-        const resp = await fetch(url, { method: 'GET', signal: controller.signal });
+        const resp = await fetch(url, { method: 'GET', headers: this._buildHeaders(), signal: controller.signal });
         const text = await resp.text();
         const body = safeJsonParse(text);
         if (!resp.ok) {
@@ -160,7 +201,7 @@
       const start = performance.now();
 
       try {
-        const resp = await fetch(url, { method: 'GET', signal: controller.signal });
+        const resp = await fetch(url, { method: 'GET', headers: this._buildHeaders(), signal: controller.signal });
         const text = await resp.text();
         const body = safeJsonParse(text);
         const latencyMs = performance.now() - start;
@@ -173,6 +214,193 @@
         }
         const parsed = assertStreamPullShape(body);
         return { ...parsed, _latencyMs: latencyMs };
+      } finally {
+        clear();
+      }
+    }
+
+    async listAlerts({ status = null, limit = 100 } = {}) {
+      const controller = new AbortController();
+      const clear = withTimeout(this.defaultTimeoutMs, controller);
+      const statusQuery = status ? `&status=${encodeURIComponent(String(status))}` : '';
+      const url = `${this.baseUrl}/alerts?limit=${encodeURIComponent(String(limit))}${statusQuery}`;
+
+      try {
+        const resp = await fetch(url, { method: 'GET', headers: this._buildHeaders(), signal: controller.signal });
+        const text = await resp.text();
+        const body = safeJsonParse(text);
+        if (!resp.ok) {
+          const detail = body && body.detail ? String(body.detail) : `HTTP ${resp.status}`;
+          throw new Error(`List alerts failed: ${detail}`);
+        }
+        return assertAlertListShape(body);
+      } finally {
+        clear();
+      }
+    }
+
+    async getAlert(alertId) {
+      if (!alertId) throw new Error('getAlert: alertId is required.');
+
+      const controller = new AbortController();
+      const clear = withTimeout(this.defaultTimeoutMs, controller);
+      const url = `${this.baseUrl}/alerts/${encodeURIComponent(String(alertId))}`;
+
+      try {
+        const resp = await fetch(url, { method: 'GET', headers: this._buildHeaders(), signal: controller.signal });
+        const text = await resp.text();
+        const body = safeJsonParse(text);
+        if (!resp.ok) {
+          const detail = body && body.detail ? String(body.detail) : `HTTP ${resp.status}`;
+          throw new Error(`Get alert failed: ${detail}`);
+        }
+        return body;
+      } finally {
+        clear();
+      }
+    }
+
+    async updateAlertStatus(alertId, { caseStatus, analystNote = '', actor = 'frontend-ui' } = {}) {
+      if (!alertId) throw new Error('updateAlertStatus: alertId is required.');
+      if (!caseStatus) throw new Error('updateAlertStatus: caseStatus is required.');
+
+      const controller = new AbortController();
+      const clear = withTimeout(this.defaultTimeoutMs, controller);
+      const url = `${this.baseUrl}/alerts/${encodeURIComponent(String(alertId))}/status`;
+
+      try {
+        const resp = await fetch(url, {
+          method: 'POST',
+          headers: this._buildHeaders({ 'Content-Type': 'application/json' }),
+          signal: controller.signal,
+          body: JSON.stringify({ case_status: caseStatus, analyst_note: analystNote, actor }),
+        });
+        const text = await resp.text();
+        const body = safeJsonParse(text);
+        if (!resp.ok) {
+          const detail = body && body.detail ? String(body.detail) : `HTTP ${resp.status}`;
+          throw new Error(`Update alert status failed: ${detail}`);
+        }
+        return assertCaseShape(body);
+      } finally {
+        clear();
+      }
+    }
+
+    async listCases({ status = null, limit = 200 } = {}) {
+      const controller = new AbortController();
+      const clear = withTimeout(this.defaultTimeoutMs, controller);
+      const statusQuery = status ? `&status=${encodeURIComponent(String(status))}` : '';
+      const url = `${this.baseUrl}/cases?limit=${encodeURIComponent(String(limit))}${statusQuery}`;
+
+      try {
+        const resp = await fetch(url, { method: 'GET', headers: this._buildHeaders(), signal: controller.signal });
+        const text = await resp.text();
+        const body = safeJsonParse(text);
+        if (!resp.ok) {
+          const detail = body && body.detail ? String(body.detail) : `HTTP ${resp.status}`;
+          throw new Error(`List cases failed: ${detail}`);
+        }
+        return assertCaseListShape(body);
+      } finally {
+        clear();
+      }
+    }
+
+    async getCase(caseId) {
+      if (!caseId) throw new Error('getCase: caseId is required.');
+
+      const controller = new AbortController();
+      const clear = withTimeout(this.defaultTimeoutMs, controller);
+      const url = `${this.baseUrl}/cases/${encodeURIComponent(String(caseId))}`;
+
+      try {
+        const resp = await fetch(url, { method: 'GET', headers: this._buildHeaders(), signal: controller.signal });
+        const text = await resp.text();
+        const body = safeJsonParse(text);
+        if (!resp.ok) {
+          const detail = body && body.detail ? String(body.detail) : `HTTP ${resp.status}`;
+          throw new Error(`Get case failed: ${detail}`);
+        }
+        return assertCaseShape(body);
+      } finally {
+        clear();
+      }
+    }
+
+    async updateCaseStatus(caseId, { caseStatus, analystNote = '', actor = 'frontend-ui' } = {}) {
+      if (!caseId) throw new Error('updateCaseStatus: caseId is required.');
+      if (!caseStatus) throw new Error('updateCaseStatus: caseStatus is required.');
+
+      const controller = new AbortController();
+      const clear = withTimeout(this.defaultTimeoutMs, controller);
+      const url = `${this.baseUrl}/cases/${encodeURIComponent(String(caseId))}/status`;
+
+      try {
+        const resp = await fetch(url, {
+          method: 'POST',
+          headers: this._buildHeaders({ 'Content-Type': 'application/json' }),
+          signal: controller.signal,
+          body: JSON.stringify({ case_status: caseStatus, analyst_note: analystNote, actor }),
+        });
+        const text = await resp.text();
+        const body = safeJsonParse(text);
+        if (!resp.ok) {
+          const detail = body && body.detail ? String(body.detail) : `HTTP ${resp.status}`;
+          throw new Error(`Update case status failed: ${detail}`);
+        }
+        return assertCaseShape(body);
+      } finally {
+        clear();
+      }
+    }
+
+    async resolveCase(caseId, { resolution, analystNote = '', actor = 'frontend-ui' } = {}) {
+      if (!caseId) throw new Error('resolveCase: caseId is required.');
+      if (!resolution) throw new Error('resolveCase: resolution is required.');
+
+      const controller = new AbortController();
+      const clear = withTimeout(this.defaultTimeoutMs, controller);
+      const url = `${this.baseUrl}/cases/${encodeURIComponent(String(caseId))}/resolve`;
+
+      try {
+        const resp = await fetch(url, {
+          method: 'POST',
+          headers: this._buildHeaders({ 'Content-Type': 'application/json' }),
+          signal: controller.signal,
+          body: JSON.stringify({ resolution, analyst_note: analystNote, actor }),
+        });
+        const text = await resp.text();
+        const body = safeJsonParse(text);
+        if (!resp.ok) {
+          const detail = body && body.detail ? String(body.detail) : `HTTP ${resp.status}`;
+          throw new Error(`Resolve case failed: ${detail}`);
+        }
+        return assertCaseShape(body);
+      } finally {
+        clear();
+      }
+    }
+
+    async getCaseTimeline(caseId) {
+      if (!caseId) throw new Error('getCaseTimeline: caseId is required.');
+
+      const controller = new AbortController();
+      const clear = withTimeout(this.defaultTimeoutMs, controller);
+      const url = `${this.baseUrl}/cases/${encodeURIComponent(String(caseId))}/timeline`;
+
+      try {
+        const resp = await fetch(url, { method: 'GET', headers: this._buildHeaders(), signal: controller.signal });
+        const text = await resp.text();
+        const body = safeJsonParse(text);
+        if (!resp.ok) {
+          const detail = body && body.detail ? String(body.detail) : `HTTP ${resp.status}`;
+          throw new Error(`Get case timeline failed: ${detail}`);
+        }
+        if (!body || typeof body !== 'object' || !Array.isArray(body.timeline)) {
+          throw new Error('Invalid /cases/{id}/timeline response shape.');
+        }
+        return body;
       } finally {
         clear();
       }

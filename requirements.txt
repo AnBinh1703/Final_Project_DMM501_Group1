@@ -9,6 +9,8 @@ joblib
 fastapi
 uvicorn[standard]
 pydantic
+sqlalchemy
+psycopg[binary]
 
 # Tracking
 mlflow

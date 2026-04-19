@@ -1,4 +1,11 @@
 # EXECUTION IMPLEMENTATION & PRESENTATION GUIDE
+
+> Alignment Notice (2026-04-18):
+> This file is preserved as a historical execution artifact and may contain outdated references
+> (for example: older model selection assumptions, endpoint lists, UI behavior, or runtime status).
+> Current source-of-truth implementation status is maintained in docs/FINAL_DECISION_SUPPORT_UPGRADE_REPORT.md, README.md, ARCHITECTURE.md, and SYSTEM_SPECIFICATION_DOCUMENT.md.
+>
+
 **Fraud Detection System - MLOps Final Project**  
 **Phase: Implementation & Delivery**  
 **Date**: April 12, 2026

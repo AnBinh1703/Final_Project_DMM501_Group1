@@ -51,7 +51,11 @@
           <div class="api-config">
             <label for="apiBaseUrlInput">API Base URL</label>
             <input id="apiBaseUrlInput" class="mono" type="text" value="http://localhost:8000" spellcheck="false" />
-            <button id="applyApiBtn" class="btn btn-secondary" type="button">Apply</button>
+            <label for="apiKeyInput">API Token</label>
+            <input id="apiKeyInput" class="mono api-token-input" type="password" value="" spellcheck="false" placeholder="Bearer token (optional when auth disabled)" />
+            <label for="actorInput">Actor</label>
+            <input id="actorInput" class="mono actor-input" type="text" value="frontend-analyst" spellcheck="false" />
+            <button id="applyApiBtn" class="btn btn-secondary" type="button">Apply Connection</button>
           </div>
         </div>
 
@@ -130,8 +134,8 @@
 
       <section class="panel alerts">
         <div class="panel-header">
-          <h2>Alert Panel</h2>
-          <div class="panel-meta">Recent high-risk items (Review + High)</div>
+          <h2>Fraud Alert Queue</h2>
+          <div class="panel-meta">Server-backed alerts for REVIEW/HIGH decisions</div>
         </div>
         <div id="alertsList" class="alerts-list">
           <div class="empty muted" id="alertsEmpty">No alerts yet.</div>
@@ -203,7 +207,7 @@
       <section class="panel control-panel">
         <div class="panel-header">
           <h2>Check &amp; Handle Queue</h2>
-          <div class="panel-meta">Handle Review/High items, add notes, and mark handled (frontend-only).</div>
+          <div class="panel-meta">Handle Review/High items, add notes, and persist analyst decisions via API.</div>
         </div>
 
         <div class="controls-grid review-controls">
@@ -218,9 +222,11 @@
           <div class="control">
             <label>Status Filter</label>
             <select id="reviewHandledFilter">
-              <option value="unhandled" selected>Unhandled</option>
+              <option value="open" selected>Open Queue</option>
               <option value="all">All</option>
-              <option value="handled">Handled</option>
+              <option value="CONFIRMED_FRAUD">Confirmed Fraud</option>
+              <option value="FALSE_POSITIVE">False Positive</option>
+              <option value="RESOLVED">Resolved</option>
             </select>
           </div>
           <div class="control">
@@ -259,16 +265,18 @@
               <thead>
                 <tr>
                   <th>Timestamp</th>
-                  <th>Request ID</th>
+                  <th>Case ID</th>
+                  <th>Txn ID</th>
                   <th class="right">Amount</th>
                   <th class="right">Score</th>
-                  <th>Risk</th>
-                  <th>Handled</th>
+                  <th>Tier</th>
+                  <th>Status</th>
+                  <th>Decision</th>
                 </tr>
               </thead>
               <tbody id="reviewBody">
                 <tr id="reviewEmptyRow">
-                  <td colspan="6" class="muted center">No cases yet.</td>
+                  <td colspan="8" class="muted center">No cases yet.</td>
                 </tr>
               </tbody>
             </table>
@@ -287,16 +295,40 @@
 
           <div class="case-card" id="caseCard" style="display:none;">
             <div class="case-kv">
+              <div class="k">Case ID</div>
+              <div class="v mono" id="caseId">-</div>
+            </div>
+            <div class="case-kv">
+              <div class="k">Alert ID</div>
+              <div class="v mono" id="caseAlertId">-</div>
+            </div>
+            <div class="case-kv">
               <div class="k">Request ID</div>
               <div class="v mono" id="caseRequestId">-</div>
+            </div>
+            <div class="case-kv">
+              <div class="k">Transaction ID</div>
+              <div class="v mono" id="caseTransactionId">-</div>
             </div>
             <div class="case-kv">
               <div class="k">Timestamp</div>
               <div class="v mono" id="caseTimestamp">-</div>
             </div>
             <div class="case-kv">
+              <div class="k">Case Status</div>
+              <div class="v mono" id="caseStatus">-</div>
+            </div>
+            <div class="case-kv">
               <div class="k">Risk</div>
               <div class="v" id="caseRisk">-</div>
+            </div>
+            <div class="case-kv">
+              <div class="k">Decision Recommendation</div>
+              <div class="v mono" id="caseDecisionRecommendation">-</div>
+            </div>
+            <div class="case-kv">
+              <div class="k">Decision Explanation</div>
+              <div class="v" id="caseDecisionExplanation">-</div>
             </div>
             <div class="case-kv">
               <div class="k" title="Risk Score (uncalibrated, relative ranking). Not a probability. Use tiers/thresholds for decisions; pXX tag is percentile under a reference distribution.">Risk Score (uncalibrated, relative ranking)</div>
@@ -310,16 +342,23 @@
               <div class="k">Amount</div>
               <div class="v mono" id="caseAmount">-</div>
             </div>
+            <div class="case-kv">
+              <div class="k">Reason Codes</div>
+              <div class="v mono" id="caseReasonCodes">-</div>
+            </div>
 
             <div class="case-actions">
               <button class="btn btn-secondary" id="caseCopyPayloadBtn" type="button">Copy /predict Payload</button>
               <button class="btn btn-secondary" id="caseRescoreBtn" type="button">Re-score (API)</button>
-              <button class="btn btn-primary" id="caseToggleHandledBtn" type="button">Mark Handled</button>
+              <button class="btn btn-secondary" id="caseSetInReviewBtn" type="button">Set IN_REVIEW</button>
+              <button class="btn btn-danger" id="caseConfirmFraudBtn" type="button">Confirm Fraud</button>
+              <button class="btn btn-secondary" id="caseFalsePositiveBtn" type="button">False Positive</button>
+              <button class="btn btn-primary" id="caseResolveBtn" type="button">Resolve</button>
             </div>
 
             <div class="case-notes">
               <label for="caseNoteInput" class="muted">Notes</label>
-              <textarea id="caseNoteInput" placeholder="Add handling notes (stored in browser memory only)"></textarea>
+              <textarea id="caseNoteInput" placeholder="Add handling notes (persisted through case status updates)"></textarea>
               <div class="case-note-actions">
                 <button class="btn btn-secondary btn-sm" id="caseSaveNoteBtn" type="button">Save Note</button>
                 <span class="muted mono" id="caseNoteSavedText"></span>
@@ -330,6 +369,13 @@
               <summary class="muted">Show features (30 floats)</summary>
               <pre class="mono" id="caseFeatures">-</pre>
             </details>
+
+            <details class="case-features">
+              <summary class="muted">Investigation Timeline</summary>
+              <ul class="timeline-list" id="caseTimeline">
+                <li class="muted">No timeline events.</li>
+              </ul>
+            </details>
           </div>
         </div>
       </section>
@@ -337,7 +383,7 @@
 
     <footer class="app-footer">
       <div class="muted">
-        Backend contract used: <span class="mono">GET /health</span>, <span class="mono">POST /predict</span>, <span class="mono">GET /metrics</span>
+        Backend contract used: <span class="mono">/health</span>, <span class="mono">/predict</span>, <span class="mono">/stream/pull</span>, <span class="mono">/alerts</span>, <span class="mono">/cases</span>
       </div>
       <div class="muted">
         Tip: open API docs at <span class="mono">/docs</span> and metrics at <span class="mono">/metrics</span>

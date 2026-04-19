@@ -48,3 +48,23 @@ groups:
           summary: "Prediction traffic is unusually high"
           description: "Prediction rate is above 50 req/s for 10 minutes."
 
+      - alert: FraudReviewQueueBacklogHigh
+        expr: |
+          review_queue_size > 200
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Fraud review backlog is growing"
+          description: "review_queue_size has remained above 200 for 15 minutes."
+
+      - alert: FraudFalsePositiveSpike
+        expr: |
+          increase(false_positive_total[30m]) > 25
+        for: 10m
+        labels:
+          severity: info
+        annotations:
+          summary: "False positives spiked in the last 30 minutes"
+          description: "More than 25 cases were marked FALSE_POSITIVE within 30 minutes."
+

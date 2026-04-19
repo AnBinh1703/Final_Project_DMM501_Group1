@@ -1,4 +1,11 @@
 # FINAL PROJECT AUDIT SUMMARY
+
+> Alignment Notice (2026-04-18):
+> This file is preserved as a historical execution artifact and may contain outdated references
+> (for example: older model selection assumptions, endpoint lists, UI behavior, or runtime status).
+> Current source-of-truth implementation status is maintained in docs/FINAL_DECISION_SUPPORT_UPGRADE_REPORT.md, README.md, ARCHITECTURE.md, and SYSTEM_SPECIFICATION_DOCUMENT.md.
+>
+
 **Fraud Detection MLOps System — Final Evaluation Status**  
 **Last Updated**: Phase 9 Completion  
 **Assessment Methodology**: Evidence-based verification against rubric requirements

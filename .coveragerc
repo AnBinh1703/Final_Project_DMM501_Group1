@@ -1,0 +1,8 @@
+[run]
+source = src
+omit =
+    src/pipelines/run_model_workflow.py
+
+[report]
+show_missing = True
+skip_covered = False

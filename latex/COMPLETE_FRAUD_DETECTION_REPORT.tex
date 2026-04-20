@@ -22,7 +22,7 @@
 
 \title{Complete Fraud Detection Report\\Real-Time Banking Transaction Fraud Detection and Decision Support System}
 \author{Repository: \code{Final_Project_DMM501_Group1}}
-\date{Generated from repository implementation}
+\date{April 2026}
 
 \begin{document}
 \maketitle
@@ -34,7 +34,7 @@ This project implements a fraud detection system that combines machine learning 
 
 The key capability is not only fraud scoring, but the conversion of model output into actionable workflow states. In the implemented design, the machine learning layer acts as a ranking mechanism, while operational services determine whether a transaction should be allowed, sent for manual review, challenged through step-up authentication, held, or blocked. This architecture supports analyst triage, queue management, and investigation tracking rather than treating model output as a final adjudication.
 
-The business objective is to reduce fraud loss, control review workload, and limit unnecessary customer friction. It does so by separating low-risk transactions from review-queue transactions and high-risk transactions, while preserving traceability through \code{alert}, \code{case}, and timeline records. The implementation is strongest as a local, end-to-end fraud decision-support demonstration and partial MLOps platform, rather than as a production-grade banking control stack.
+The business objective is to reduce fraud loss, control review workload, and limit unnecessary customer friction. It does so by separating low-risk transactions from review-queue transactions and high-risk transactions, while preserving traceability through \code{alert}, \code{case}, and timeline records. The implementation is strongest as a local, end-to-end fraud decision-support demonstration and MLOps reference system, rather than as a production-grade banking control stack.
 
 \section{Introduction}
 Fraud detection remains a central operational problem in banking because digital transactions are high volume, time sensitive, and exposed to multiple attack patterns, including unauthorized card use, account takeover, mule activity, and anomalous transfer behavior. Financial institutions must detect suspicious activity quickly enough to contain loss, while also avoiding unnecessary interruption to legitimate customers.
@@ -105,11 +105,11 @@ For fraud detection, PR-AUC is more informative than ROC-AUC because the positiv
 \toprule
 Model & Threshold & Precision & Recall & F1 & ROC-AUC & PR-AUC & Status \\
 \midrule
-Logistic Regression & 0.99 & 0.6742 & 0.8108 & 0.7362 & 0.9680 & 0.7929 & Selected in deployed artifacts \\
-LightGBM & 0.84 & 0.8852 & 0.7297 & 0.8000 & 0.8828 & 0.7161 & Benchmarked candidate \\
+Logistic Regression (Review) & 0.7391 & 0.1470 & 0.8510 & 0.2510 & 0.9684 & 0.6300 & Selected in deployed artifacts \\
+LightGBM (Review) & 0.0000004 & 0.1330 & 0.7700 & 0.2270 & 0.9288 & 0.6290 & Benchmarked candidate \\
 \bottomrule
 \end{tabular}
-\caption{Model comparison from repository benchmark artifacts.}
+\caption{Validation operating-point comparison from repository benchmark artifacts.}
 \end{table}
 
 The repository also stores the final deployed evaluation metrics at the operating thresholds used for decision support. At the review threshold, precision is 0.1462 and recall is 0.8514. At the high threshold, precision is 0.8429 and recall is 0.7973. These figures show the trade-off between broader queue capture at the review threshold and tighter containment at the high threshold.
@@ -217,7 +217,7 @@ Endpoint & Method & Purpose & Status \\
 \bottomrule
 \end{longtable}
 
-For storage, the system supports two repository modes. The in-memory repository is fully implemented and used as the default demo mode. The SQL repository is implemented in code and covered by integration testing. Docker Compose is prepared for PostgreSQL. It is therefore most accurate to describe SQL-backed persistence as partially implemented for production use.
+For storage, the system supports two repository modes. The in-memory repository is fully implemented and used as the default demo mode. The SQL repository is implemented in code, covered by integration testing, and wired into Docker Compose through PostgreSQL. SQL-backed persistence is configurable and operational when enabled.
 
 \section{Frontend System}
 The frontend is an analyst-facing dashboard implemented in static HTML, CSS, and JavaScript. It connects to the backend API, displays model and threshold metadata, supports live streaming views, and provides a review workflow for suspicious transactions.
@@ -252,7 +252,7 @@ Decision policy service & Map score to tier and recommendation & \code{src/servi
 Reason code service & Produce decision-support cues & \code{src/services/reason_code_service.py} & Implemented, heuristic \\
 FastAPI backend & Serve scoring and workflow APIs & \code{src/api/main.py} & Implemented \\
 In-memory repository & Default alert and case storage & \code{src/repositories/in_memory_case_repository.py} & Implemented, demo-level \\
-SQL/Postgres repository & Durable case storage path & \code{src/repositories/sql_case_repository.py} & Partially implemented \\
+SQL/Postgres repository & Durable case storage path & \code{src/repositories/sql_case_repository.py} & Implemented (configurable) \\
 Frontend dashboard & Analyst queue and case handling UI & \code{frontend/} & Implemented \\
 Prometheus metrics & Operational observability & \code{src/monitoring/metrics.py} & Implemented \\
 Grafana dashboards & Visualization layer & \code{deployment/grafana/} & Implemented \\
@@ -265,7 +265,7 @@ MLflow tracking & Experiment and runtime tracking & \code{deployment/mlflow/}, \
 \section{Testing and Validation}
 The repository contains unit, data, integration, security, frontend/API, SQL persistence, and model validation tests. The test inventory includes coverage for preprocessing behavior, request ID generation, dataset path handling and sampling logic, model training artifact creation, model probability range validation, key API endpoints, \code{alert} and \code{case} lifecycle flow, token-based authorization, audit events, rate limiting, SQL repository persistence across app restarts, and frontend-to-API interaction.
 
-The repository currently contains 33 test functions under \code{tests/}. In the present workspace, integration-style checks pass for multiple API and workflow scenarios, but a full plain \code{pytest} run encountered Windows temp-directory permission issues affecting tests that use \code{tmp_path}. This is an environment constraint rather than evidence that the implemented API workflow is absent.
+The repository contains unit, integration, data, model, and frontend/API tests under \code{tests/}. In the present workspace, integration-style checks pass for multiple API and workflow scenarios, but full-suite runs can encounter Windows temp-directory permission issues affecting tests that use \code{tmp_path}. This is an environment constraint rather than evidence that the implemented API workflow is absent.
 
 \section{Responsible AI}
 The repository is explicit that the system is a decision-support system and not a fully autonomous fraud adjudication engine. This is the correct framing for banking use.
@@ -317,7 +317,7 @@ Investigation timeline & Implemented & Timeline endpoint and event model present
 Frontend analyst workflow & Implemented & Dashboard, queue, case actions, and timeline \\
 Prometheus and Grafana monitoring & Implemented & Metrics, rules, and dashboard assets present \\
 MLflow runtime tracking & Implemented & Runtime traffic tracker and deployment service present \\
-SQL/Postgres persistence & Partially implemented & Repository and integration test exist; not the default demo path \\
+SQL/Postgres persistence & Implemented (configurable) & Repository path, migrations, and Compose wiring are available \\
 Reason-code explainability & Partially implemented & Heuristic and policy-derived rather than causal \\
 Streaming behavior & Demo-level & Pull-based simulator, not event-bus-backed banking ingestion \\
 In-memory case persistence & Demo-level & Process-bound storage intended for local demo \\

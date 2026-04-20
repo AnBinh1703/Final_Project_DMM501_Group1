@@ -1,304 +1,666 @@
-<!-- markdownlint-disable MD025 MD032 MD012 -->
+<!-- markdownlint-disable MD025 MD032 MD013 MD012 -->
 
 # 1. Executive Summary
 
-This document is the single master record for the Real-Time Banking Transaction Fraud Detection and Decision Support System.
+The Real-Time Banking Transaction Fraud Detection and Decision Support System is an end-to-end platform that transforms transaction inputs into operational fraud-handling outcomes. Rather than acting as a standalone classifier, the system combines machine learning inference, threshold-based policy logic, analyst-facing workflow support, alert and case generation, investigation timelines, operational monitoring, and deployment assets into one coherent fraud decision-support system.
 
-The implemented system is an end-to-end fraud operations platform rather than a standalone classification notebook. It combines model inference, threshold-based decision logic, analyst-facing alert and case workflows, audit and monitoring instrumentation, a browser dashboard, and containerized deployment assets.
+The project matters because banking fraud is not only a modeling problem. Fraud operations must balance fraud loss prevention, customer friction, analyst workload, and governance requirements. A technically strong model is insufficient if it cannot be translated into actionable decisions, review queues, auditable case handling, and observable operational behavior. This project addresses that broader operational need.
 
-The current implementation is aligned to the repository state on 2026-04-19:
-- The deployed artifact is a logistic regression pipeline loaded from `artifacts/models/final_model.joblib`.
-- The scoring contract expects 30 features: `Time`, `V1`-`V28`, and `Amount`.
-- `risk_score` is explicitly treated as an uncalibrated ranking signal, not a calibrated fraud probability.
-- `threshold_review` and `threshold_high` are capacity-driven thresholds stored in model metadata and used to derive `risk_tier` and `decision_recommendation`.
-- Alerts and cases are created automatically for `REVIEW` and `HIGH` outcomes, with lifecycle transitions, timelines, and audit events.
-- Prometheus metrics, Grafana dashboards, MLflow runtime logging, and Docker Compose assets are implemented.
+What is implemented in the repository today:
+- artifact-backed model loading and transaction scoring
+- `risk_score`, `risk_tier`, and `decision_recommendation` generation
+- alert and case creation for flagged transactions
+- case lifecycle transitions and investigation timelines
+- a FastAPI backend with explicit request and response contracts
+- a browser-based analyst dashboard
+- Prometheus metrics, Grafana provisioning, and MLflow runtime tracking hooks
+- Docker Compose deployment assets with PostgreSQL, API, frontend, Prometheus, Grafana, and MLflow services
 
-Current validation status in this environment:
-- Core unit and integration coverage is verified: 18 tests passed in a focused run across `tests/unit` and `tests/integration`, with one SQL persistence test blocked by the local Windows temporary-directory permission issue used by `pytest`.
-- A broader full-suite run produced 19 passing tests, with the remaining errors caused by the same temp-directory permission problem rather than failing assertions.
-- Docker Compose configuration and deployment artifacts are present in the repository, but the full stack was not re-executed during this consolidation pass.
+What remains limited or incomplete:
+- the deployed `risk_score` is uncalibrated and must be interpreted as a ranking signal, not a calibrated fraud probability
+- fairness validation is limited by the source dataset
+- reason codes are heuristic and operational rather than causal
+- not every deployment path has been re-verified in the current environment
+- some automated tests are blocked by local Windows temporary-directory permission issues rather than application failures
 
+The result is a technically meaningful and operationally useful project for academic submission, demonstration, and defense. It is strong as a decision-support prototype and system report, while still requiring production hardening before any real banking deployment.
 
 # 2. Introduction
 
-This project addresses fraud detection as an operational decision-support problem. The objective is not only to score transactions, but also to help analysts interpret risk, prioritize review workload, capture outcomes, and observe system behavior through runtime metrics and deployment tooling.
+Banking transaction fraud is a high-impact problem because fraudulent activity occurs at scale, evolves quickly, and imposes direct and indirect costs on financial institutions. Direct costs include monetary loss, operational investigation cost, reimbursement expense, and downstream remediation work. Indirect costs include customer dissatisfaction, trust erosion, regulatory attention, and reputational damage.
 
-The repository includes:
-- a reproducible ML workflow for data analysis, model training, threshold selection, and artifact export
-- a FastAPI backend with explicit schemas and workflow endpoints
-- a browser-based analyst dashboard implemented in vanilla HTML, CSS, and JavaScript
-- monitoring integrations for Prometheus, Grafana, and MLflow
-- Docker-based deployment assets
-- automated tests and supporting verification scripts
+Real-time handling matters because delayed fraud response reduces the opportunity to block or contain suspicious activity. In many banking contexts, the time window for useful intervention is narrow. Transactions that are not flagged early may settle, cascade into additional fraudulent activity, or trigger more costly incident handling.
 
-The project is suitable for academic demonstration and technical review. Production use would require further hardening, especially around security controls, durable operations defaults, and governance automation.
+Pure rule-based systems remain useful in fraud operations, but they are limited. Static rules often struggle to balance sensitivity and precision across changing traffic patterns, especially under severe class imbalance. They can also produce excessive false positives, which overload analysts and increase customer friction. Machine learning helps by ranking transactions based on learned patterns rather than relying only on manually maintained rules.
 
+However, model output alone does not solve the operational problem. Once a transaction is identified as suspicious, the institution still needs to decide whether to allow it, step up authentication, hold it, block it, or send it to manual review. Analysts need an alert, a case, a timeline of decisions and updates, and system visibility into workload and outcomes. This report therefore frames the project as a real-time banking transaction fraud detection and decision-support system, not merely a fraud classification model.
 
 # 3. Problem Definition
 
-Banking fraud detection is a highly imbalanced classification problem with operational consequences:
-- fraud events are rare
-- false negatives create direct financial loss
-- false positives create customer friction and analyst workload
-- review capacity is limited, so not all suspicious activity can be investigated manually
+The project addresses real-time banking transaction fraud detection under class imbalance and operational constraints.
 
-For that reason, the system separates three concepts:
-- `risk_score`: the model output used as a ranking signal
-- `risk_tier`: the operational tier derived from policy thresholds
-- `decision_recommendation`: the recommended business action derived from score, thresholds, amount, and channel context
+The core technical difficulty is that fraud is rare relative to legitimate activity. In the project dataset, fraud prevalence is approximately 0.17 percent. This means a model can appear strong under weak metrics while still being operationally poor. Accuracy is not a sufficient measure because it obscures how well the system identifies the rare cases that matter.
 
-This framing prevents the system from overstating model certainty and keeps human review in the loop where operationally necessary.
+The operational difficulty is that classification mistakes have asymmetric costs:
+- false negatives allow fraud loss to proceed
+- false positives generate customer friction and manual investigation cost
+- overly broad review policies can overwhelm analysts
+- overly narrow thresholds can miss actionable fraud
 
+For that reason, the project defines the problem more broadly than binary classification. The system must convert incoming transaction data into operationally useful outputs:
+- `risk_score`
+- `risk_tier`
+- `decision_recommendation`
+- `alert`
+- `case`
 
-# 4. System Overview
+A decision-support system is preferable to raw binary classification because banking operations require prioritization, escalation, traceability, and human review. A binary label alone does not tell the bank whether to intervene immediately, request additional verification, or place the transaction into an analyst workflow.
 
-The system accepts a banking transaction feature vector, validates the request, performs inference using the deployed model, maps the output into operational tiers, generates interpretable reason codes, and creates workflow records for analyst handling when necessary.
+# 4. Business Context and Operational Needs
 
-Core entities are standardized as follows:
-- `risk_score`: model output in the range `[0, 1]`, explicitly labeled `risk_score_uncalibrated`
-- `risk_tier`: `LOW`, `REVIEW`, or `HIGH`
-- `decision_recommendation`: `ALLOW`, `STEP_UP_AUTH`, `MANUAL_REVIEW`, `HOLD`, or `BLOCK`
-- `alert`: the operational signal created for a flagged transaction
-- `case`: the investigation object linked to an alert and tracked through lifecycle states
+Fraud detection systems exist to reduce business loss while preserving a workable customer experience. A bank faces several simultaneous pressures:
+- prevent fraud loss quickly enough to be operationally useful
+- avoid blocking legitimate customer activity unnecessarily
+- keep analyst workload within manageable review capacity
+- produce auditable records of why decisions were taken
+- support governance and supervisory scrutiny when necessary
 
-At runtime, the main flow is:
+Queue prioritization is central to this problem. Analyst teams cannot manually investigate every scored transaction. Thresholds and tiers therefore serve a business purpose: they concentrate human attention on the subset of transactions most likely to justify review or intervention. In this context, PR-AUC matters not only as a statistical metric but because queue precision matters operationally. A poorly tuned review queue wastes analyst time and increases customer friction without corresponding fraud benefit.
 
-Incoming transaction -> request validation -> feature resolution -> model scoring -> threshold-based policy mapping -> reason code generation -> alert/case creation for `REVIEW` or `HIGH` -> case timeline recording -> metrics and audit logging -> analyst dashboard consumption
+Manual review carries real cost. Analysts need structured investigation support:
+- an `alert` that identifies a suspicious event
+- a `case` that persists workflow state
+- a case lifecycle that reflects current handling status
+- an investigation timeline that supports traceability and auditability
+- reason-code style context that supports quick interpretation
 
+Governance and auditability also matter. In banking operations, institutions need to demonstrate what happened, who changed a case, and how a transaction moved from model output to business action. The project's case lifecycle, investigation timeline, audit events, and monitoring metrics address this requirement at a prototype but operationally meaningful level.
 
-# 5. System Architecture
+The system therefore solves a real banking operations problem: not just "detect fraud," but "translate transaction risk into controlled, observable, reviewable operational action."
 
-The architecture is organized into five cooperating layers.
+# 5. Project Scope
 
-Scoring layer:
-- model loading from artifact metadata in `src/models/loader.py`
-- preprocessing and inference in `src/services/scoring_service.py`
+The project scope is intentionally broader than a model benchmark and narrower than a production banking platform.
 
-Decision layer:
-- policy mapping in `src/services/decision_service.py`
-- heuristic explainability in `src/services/reason_code_service.py`
+Included in scope:
+- fraud risk scoring from transaction feature vectors
+- explicit `risk_tier` and `decision_recommendation` mapping
+- alert and case creation for suspicious transactions
+- case lifecycle management and investigation timeline exposure
+- frontend support for analyst workflow
+- operational monitoring instrumentation
+- local deployment assets using Docker Compose
+- model training, evaluation, artifact generation, and metadata export
 
-Workflow and persistence layer:
-- alert and case orchestration in `src/services/case_service.py`
-- repository abstraction in `src/repositories/`
-- in-memory demo repository and SQL-backed PostgreSQL repository are both implemented
+Out of scope:
+- integration with live core banking transaction streams
+- enterprise identity management and secret vault integration
+- production-grade model governance, approval workflows, and retraining automation
+- direct use of rich real-bank telemetry such as device graphs, merchant history, account network analysis, or customer behavior baselines
+- full regulatory compliance packaging for a real bank deployment
 
-Presentation layer:
-- FastAPI service in `src/api/main.py`
-- analyst dashboard in `frontend/`
+Demo-level or prototype-grade areas:
+- in-memory persistence fallback when no SQL repository is configured
+- heuristic reason codes
+- locally configured analyst tokens and admin credentials
+- static-file-served frontend interaction model
 
-Operations and observability layer:
-- Prometheus instrumentation in `src/monitoring/metrics.py`
-- MLflow runtime tracking in `src/monitoring/mlflow_runtime_tracker.py`
-- Grafana and Prometheus provisioning in `deployment/`
+Future work areas:
+- stronger authentication and secrets management
+- richer transaction features and model calibration
+- drift detection and closed-loop learning from case outcomes
+- broader deployment verification and production runbooks
 
-The backend starts by validating auth configuration, loading the model artifact, initializing the stream simulator if a model is available, and building the case repository from environment configuration. In `auto` mode the repository falls back to in-memory storage when no database URL is provided; in Docker Compose mode it is configured to use PostgreSQL.
+Assumptions:
+- transaction requests provide either an ordered feature vector or a feature map aligned to the model metadata
+- the deployed artifact metadata remains the source of truth for thresholds and model identity
+- analysts interpret outputs as decision support, not as final proof of fraud
 
+# 6. Stakeholders and Actors
 
-# 6. Repository Structure
+The system involves the following stakeholders and runtime actors.
 
-The repository is organized as follows:
+Customer:
+- the bank customer initiating a legitimate or fraudulent transaction
+- indirectly affected by false positives, holds, blocks, and step-up authentication
 
-```text
-.
-|-- src/
-|   |-- api/
-|   |-- data/
-|   |-- features/
-|   |-- models/
-|   |-- monitoring/
-|   |-- pipelines/
-|   |-- repositories/
-|   |-- security/
-|   |-- services/
-|   |-- streaming/
-|   `-- utils/
-|-- frontend/
-|-- deployment/
-|-- artifacts/
-|-- data/
-|-- tests/
-|-- docs/
-|-- latex/
-|-- README.md
-|-- ARCHITECTURE.md
-`-- MASTER_REPORT.md
+Banking Channel:
+- the upstream transaction source such as mobile app, internet banking, API, ATM, branch, or card-not-present channel
+- provides the transaction context that the system evaluates
+
+Fraud API:
+- the backend application that validates requests, executes scoring, applies decision policy, creates workflow records, and exposes operational endpoints
+
+Fraud Scoring Engine:
+- the model-loading and inference layer that produces `risk_score`
+- implemented through model artifact loading and scoring services
+
+Decision Policy Engine:
+- converts `risk_score` into `risk_tier` and `decision_recommendation`
+- makes operational handling explicit rather than leaving interpretation implicit
+
+Fraud Analyst:
+- reviews `alert` and `case` records
+- updates case status, adds notes, and resolves investigations
+- uses the frontend dashboard and case APIs to progress fraud workflow decisions
+
+Monitoring / Operations:
+- observes system health, request volume, queue size, prediction distribution, alert creation, and case outcomes
+- uses Prometheus and Grafana assets to monitor operational behavior
+
+ML / Model Ops:
+- manages training workflows, artifacts, threshold metadata, and runtime model selection
+- uses artifact outputs and MLflow-related components to support model lifecycle visibility
+
+# 7. Functional Requirements
+
+The following functional requirements are stated in SPS style and aligned to the current repository implementation.
+
+- FR-1: The system shall accept transaction features and return `risk_score`, `risk_tier`, `action`, and `decision_recommendation`.
+- FR-2: The system shall document score semantics as uncalibrated risk ranking, not calibrated probability.
+- FR-3: The system shall map scores to explicit decision tiers using threshold metadata.
+- FR-4: The system shall apply policy-level actions: `LOW -> ALLOW`, `REVIEW -> STEP_UP_AUTH or MANUAL_REVIEW`, `HIGH -> HOLD or BLOCK`.
+- FR-5: The system shall ingest the Kaggle credit card fraud dataset and validate schema before training.
+- FR-6: The system shall split data into train, validation, and test partitions using stratification.
+- FR-7: The system shall train baseline and improved candidate models and compare them.
+- FR-8: The system shall tune decision thresholds using top-K review-rate policy.
+- FR-9: The system shall generate reproducible model artifacts and model metadata.
+- FR-10: The system shall support `/predict` using either `features` or `features_by_name`.
+- FR-11: The system shall expose `/health` with model and threshold metadata.
+- FR-12: The system shall expose `/metrics` in Prometheus format.
+- FR-13: The system shall expose `/features/schema` for feature contract discovery.
+- FR-14: The system shall expose `/stream/pull` for scored event simulation.
+- FR-15: The system shall return deterministic HTTP 422 validation errors for malformed inputs.
+- FR-16: The system shall return HTTP 503 when no model artifact is loaded.
+- FR-17: The system shall expose alert and case workflow endpoints for investigation lifecycle handling.
+- FR-18: The system shall enforce endpoint access with configurable authentication and role checks.
+- FR-19: The system shall expose audit event listing for governance visibility.
+- FR-20: The system shall enforce mutually exclusive input mode (`features` XOR `features_by_name`).
+- FR-21: The system shall return decision explanation fields including recommendation and reason summary.
+- FR-22: The system shall support case timeline retrieval for investigations.
+- FR-23: The system shall expose internal labeled sample endpoints behind token validation.
+- FR-24: The system shall emit Prometheus metrics for requests, latency, and prediction outcomes.
+- FR-25: The system shall support Prometheus scraping and Grafana dashboard visualization.
+- FR-26: The system shall evaluate configured Prometheus alert rules.
+- FR-27: The system shall track queue and case workflow metrics (for example review queue size and case status).
+- FR-28: The system shall expose runtime tracking status through health metadata.
+- FR-29: The system shall support local deployment using Docker Compose.
+
+# 8. Non-Functional Requirements
+
+The non-functional requirements are defined as follows.
+
+Performance:
+- single-request scoring should remain low latency for local/demo operations
+- monitoring instrumentation should not materially block request handling
+- model startup and readiness should complete within practical local runtime targets
+
+Reliability:
+- invalid inputs shall produce deterministic validation errors
+- case state transitions shall preserve coherent workflow state
+- the API shall expose health information and model-loading status
+
+Scalability:
+- the repository shall support an upgrade path from in-memory demo storage to SQL-backed persistence
+- deployment topology shall separate API, persistence, and monitoring services
+- services should be container-friendly and horizontally extensible
+
+Observability:
+- request counts, latency, prediction tiers, case metrics, and review queue size shall be measurable
+- monitoring outputs shall support both technical and operational visibility
+
+Maintainability:
+- the backend shall remain modular across API, services, repositories, and monitoring layers
+- explicit schema models shall define public API contracts
+- the architecture should preserve service separation for scoring, policy, and workflow modules
+
+Portability:
+- local development should be supported on Windows and Linux environments
+- deployment should be reproducible through Docker Compose
+- environment-variable based configuration shall control runtime behavior
+
+Security:
+- the system shall support token authentication, role-based access control, and rate limiting
+- internal labeled-data access shall remain protected
+- the current implementation is not a full enterprise security platform and requires further hardening for production use
+
+Usability:
+- analyst-facing views shall expose queue context, decision support fields, and lifecycle actions with minimal navigation
+- analyst workflows should keep key actions (status update, resolve) low-friction
+
+Testability:
+- the system shall include unit, integration, data, and model tests
+- frontend-to-API smoke validation shall be available through dedicated scripts
+- deterministic behavior should be preserved where seeded workflows are used
+
+# 9. System Overview
+
+The end-to-end operational flow is:
+
+Transaction -> Validation -> Feature Preparation -> Risk Scoring -> Decision Policy -> Alert Generation -> Case Creation -> Investigation -> Resolution -> Monitoring -> Future Feedback Loop
+
+In more detail:
+1. A transaction arrives from a banking channel.
+2. The API validates request structure, feature length, numeric integrity, and optional metadata.
+3. The backend resolves the feature vector expected by the deployed model artifact.
+4. The scoring layer produces `risk_score`.
+5. The decision layer maps `risk_score` to `risk_tier` and `decision_recommendation`.
+6. If the transaction is suspicious enough to require review or intervention, the system creates an `alert` and a linked `case`.
+7. The case begins an investigation lifecycle, and timeline events are recorded.
+8. Analysts inspect the case, review context, update status, and store the final resolution.
+9. Monitoring components expose operational behavior through metrics and dashboards.
+10. In future extensions, resolved cases can become part of a feedback loop for retraining or policy refinement.
+
+This structure reflects the project's central design principle: model output is not the end of the system; it is an input to operational fraud handling.
+
+# 10. System Architecture
+
+The architecture integrates data artifacts, an ML pipeline, a decision-support backend, an analyst frontend, monitoring assets, and a deployment stack.
+
+## 10.1 Overall Architecture Diagram
+
+```mermaid
+flowchart LR
+    A[Banking Channel] --> B[FastAPI Fraud API]
+    B --> C[Validation and Schema Layer]
+    C --> D[Scoring Service]
+    D --> E[Deployed Model Artifact]
+    D --> F[Decision Policy Engine]
+    F --> G[Reason Code Engine]
+    F --> H[Alert and Case Service]
+    H --> I[(In-Memory Repository)]
+    H --> J[(PostgreSQL Repository)]
+    B --> K[Frontend Dashboard]
+    B --> L[Prometheus Metrics]
+    L --> M[Grafana]
+    B --> N[MLflow Runtime Tracker]
 ```
 
-Key directories:
-- `src/`: application code, training workflows, repositories, security, and monitoring
-- `frontend/`: analyst dashboard and frontend API client
-- `deployment/`: Docker Compose, Dockerfiles, Prometheus rules, Grafana dashboards, and MLflow container assets
-- `artifacts/`: trained models, figures, benchmark tables, reports, MLflow data, and deployment evidence
-- `tests/`: unit, data, model, integration, and smoke verification code
-- `docs/`: prior reports, audits, quick-start material, and architecture/specification documents consolidated into this master record
+## 10.2 Architecture Narrative
 
+Dataset and artifacts:
+- training data is loaded from the credit-card fraud dataset
+- the pipeline exports trained models, metadata, figures, and reports under `artifacts/`
 
-# 7. Dataset and Data Analysis
+ML pipeline:
+- trains baseline and improved candidate models
+- selects the deployed model based on validation evidence
+- exports threshold metadata and score semantics for runtime use
 
-The primary dataset is the Kaggle Credit Card Fraud Detection dataset stored at `data/archive/creditcard.csv`.
+Backend API:
+- validates requests
+- performs scoring
+- applies decision logic
+- creates workflow objects
+- exposes analyst and monitoring endpoints
 
-Artifact-backed dataset facts from `artifacts/reports/dataset_schema.json` and `artifacts/reports/eda_summary.json`:
-- total rows: 284,807
+Decision layer:
+- maps ranking outputs into operational handling tiers and recommendations
+- provides the business bridge between model inference and workflow action
+
+Reason code engine:
+- generates heuristic operational explanations
+- improves analyst interpretation speed without claiming causal explanation
+
+Alert and case services:
+- create alerts and cases for flagged transactions
+- support case lifecycle transitions and timeline access
+
+Frontend:
+- provides a live dashboard and review-oriented interaction surface for analysts
+
+Monitoring:
+- captures technical and operational metrics
+- supports queue monitoring, traffic visibility, and case outcome tracking
+
+Deployment stack:
+- packages API, frontend, PostgreSQL, Prometheus, Grafana, and MLflow in a local Docker Compose topology
+
+## 10.3 ML Pipeline Diagram
+
+```mermaid
+flowchart LR
+    A[creditcard.csv] --> B[Schema and EDA Checks]
+    B --> C[Train/Validation/Test Split]
+    C --> D[Baseline Logistic Regression]
+    C --> E[Improved LightGBM Candidate]
+    D --> F[Validation Metrics]
+    E --> F
+    F --> G[Model Selection]
+    G --> H[Threshold Tuning]
+    H --> I[Artifact Export]
+    I --> J[final_model.joblib and model_info.json]
+```
+
+## 10.4 Fraud Workflow Diagram
+
+```mermaid
+flowchart LR
+    A[Transaction Request] --> B[Validation]
+    B --> C[Model Scoring]
+    C --> D[risk_score]
+    D --> E[risk_tier]
+    E --> F[decision_recommendation]
+    F --> G{Tier = REVIEW or HIGH?}
+    G -- No --> H[Return Response and Metrics]
+    G -- Yes --> I[Create alert]
+    I --> J[Create case]
+    J --> K[Analyst investigation]
+    K --> L[Resolution]
+```
+
+## 10.5 Case Lifecycle Diagram
+
+```mermaid
+stateDiagram-v2
+    [*] --> NEW
+    NEW --> QUEUED
+    NEW --> IN_REVIEW
+    QUEUED --> IN_REVIEW
+    IN_REVIEW --> ESCALATED
+    IN_REVIEW --> CONFIRMED_FRAUD
+    IN_REVIEW --> FALSE_POSITIVE
+    IN_REVIEW --> BLOCKED
+    IN_REVIEW --> RELEASED
+    ESCALATED --> CONFIRMED_FRAUD
+    ESCALATED --> FALSE_POSITIVE
+    BLOCKED --> RESOLVED
+    RELEASED --> RESOLVED
+    CONFIRMED_FRAUD --> RESOLVED
+    FALSE_POSITIVE --> RESOLVED
+```
+
+## 10.6 Data-Training to Serving Architecture
+
+The end-to-end technical delivery flow is explicitly:
+
+Data and Training -> MLflow (experiment tracking, benchmark comparison, model registry/promotion) -> Serving API -> Monitoring
+
+```mermaid
+flowchart LR
+    A[Data Ingestion and Validation] --> B[Training Pipeline]
+    B --> C[Model Evaluation and Benchmarking]
+    C --> D[MLflow Tracking and Registry]
+    D --> E[Promoted Model Artifact]
+    E --> F[Serving API FastAPI]
+    F --> G[Prediction and Decision Workflow]
+    F --> H[Prometheus Metrics Endpoint]
+    H --> I[Prometheus]
+    I --> J[Grafana Dashboards and Alerts]
+```
+
+Operational interpretation:
+- Data and training produce candidate models and benchmark evidence.
+- MLflow is used for experiment lineage, benchmark comparison, and model lifecycle control.
+- The promoted artifact is loaded by the serving API for real-time scoring and decisions.
+- Monitoring closes the loop with request, latency, decision, and queue-health visibility.
+
+# 11. Repository and Component Mapping
+
+| Folder / Area | Layer | Responsibility | Key Files | Notes |
+|---|---|---|---|---|
+| `src/` | Core application | Backend logic for scoring, decisions, workflow, monitoring, and security | `src/api/main.py`, `src/services/decision_service.py`, `src/repositories/factory.py` | Main implementation layer |
+| `frontend/` | Presentation | Analyst dashboard, API client, review workflow UI | `frontend/index.html`, `frontend/app.js`, `frontend/api-client.js` | Plain JS frontend, backend-integrated |
+| `artifacts/` | ML and evidence | Models, figures, benchmark tables, reports, deployment evidence, MLflow data | `artifacts/models/model_info.json`, `artifacts/reports/model_selection_summary.json` | Source of truth for deployed model metadata |
+| `deployment/` | Deployment and observability | Dockerfiles, Compose stack, Prometheus, Grafana, MLflow assets | `deployment/docker-compose.yml`, `deployment/prometheus/prometheus.yml`, `deployment/grafana/dashboards/` | Local containerized stack |
+| `tests/` | Validation | Unit, data, model, integration, and smoke validation | `tests/integration/`, `tests/unit/`, `tests/verify_system.py` | Some tests currently blocked by environment temp-path issue |
+| `.github/workflows/` | CI/CD support | Repository automation definitions | `ci.yml`, `docker.yml` | Workflow definitions exist; runtime behavior not re-verified here |
+| `docs/` | Documentation area | Legacy project documentation location | directory retained | Legacy content has been superseded by `MASTER_REPORT.md` |
+
+## 11.1 System Components Table
+
+| Component | Type | Responsibility | Business Value | Status |
+|---|---|---|---|---|
+| Scoring service | Backend service | Produces `risk_score` from transaction features | Enables ranked fraud prioritization | Fully implemented |
+| Decision policy engine | Backend service | Maps `risk_score` to `risk_tier` and `decision_recommendation` | Converts model output into operational action | Fully implemented |
+| Reason code engine | Backend service | Generates heuristic explanation signals | Supports analyst interpretation speed | Partially implemented |
+| Alert service | Workflow service | Creates `alert` objects for suspicious transactions | Enables queue-based handling | Fully implemented |
+| Case service | Workflow service | Creates and updates `case` records and lifecycle state | Supports investigation and governance | Fully implemented |
+| Timeline service | Workflow feature | Exposes investigation event history | Supports traceability and auditability | Fully implemented |
+| Frontend dashboard | UI | Displays stream, cases, and review actions | Supports analyst workflow | Fully implemented |
+| Monitoring stack | Operations | Exposes metrics and dashboards | Supports operational monitoring | Fully implemented |
+| SQL persistence path | Infrastructure | Supports durable case storage | Supports more realistic operational persistence | Fully implemented |
+| In-memory fallback | Demo infrastructure | Supports local/demo case storage | Enables simple local usage | Demo-level |
+
+# 12. Dataset Description
+
+The project uses the Kaggle Credit Card Fraud Detection dataset stored locally at `data/archive/creditcard.csv`.
+
+Dataset characteristics from artifact outputs:
+- records: 284,807
 - total columns: 31
 - model features: 30
 - target column: `Class`
-- fraud cases: 492
-- non-fraud cases: 284,315
 - fraud prevalence: 0.001727485630620034
-- duplicate rows detected during EDA: 1,081
-- schema matches the expected credit-card format
 
-The feature contract used by the deployed model is:
+The feature layout includes:
 - `Time`
-- `V1` through `V28`
+- `V1` to `V28`
 - `Amount`
+- `Class` as the target variable
 
-The data characteristics justify the system design choices:
-- severe class imbalance makes plain accuracy misleading
-- review operations require threshold-conditioned precision and recall, not only global ranking metrics
-- threshold selection is tied to review capacity rather than a default 0.5 cutoff
+The `V1` to `V28` features are PCA-transformed and anonymized. This matters because it improves privacy for the published dataset but reduces domain interpretability. The system can learn ranking behavior from these signals, but feature meaning is not directly translatable into operational business language the way real banking telemetry might be.
 
-Evidence artifacts include:
-- `artifacts/reports/dataset_schema.json`
-- `artifacts/reports/eda_summary.json`
-- `artifacts/reports/class_distribution.json`
-- `artifacts/reports/summary_statistics.csv`
-- `artifacts/figures/class_distribution.png`
-- `artifacts/figures/amount_distribution.png`
-- `artifacts/figures/time_distribution.png`
-- `artifacts/figures/fraud_vs_nonfraud_amount.png`
-- `artifacts/figures/fraud_vs_nonfraud_time.png`
+The dataset is useful for demonstrating:
+- severe fraud rarity
+- precision-recall trade-offs
+- threshold-based triage logic
+- deployment and workflow integration around a trained fraud model
 
+The dataset is limited compared with real banking production data because it lacks:
+- customer history
+- merchant profiles
+- device identity signals
+- session and behavioral telemetry
+- account network relationships
+- rich channel-specific contextual fields
 
-# 8. Machine Learning Pipeline
+This limitation affects both model realism and explainability.
 
-The primary training and model-selection workflow is implemented in `src/pipelines/run_model_workflow.py`.
+# 13. Data Challenges
 
-The workflow performs:
-- dataset loading and schema validation
-- exploratory data analysis export
-- train, validation, and test splitting
-- baseline model training
-- improved model training
-- threshold sweeps and business-policy threshold selection
-- figure and report generation
-- artifact export for deployment
-- model metadata export to `artifacts/models/model_info.json`
-- version registration and MLflow logging
+The project faces several data challenges.
 
-Recorded split information from `artifacts/reports/split_info.json`:
+Class imbalance:
+- fraud is extremely rare, so the learning problem is dominated by legitimate transactions
+- this makes threshold choice and PR-oriented evaluation more important than simple accuracy
+
+Limited interpretability:
+- the anonymized PCA features support modeling but do not support direct operational storytelling
+- this is one reason the project uses heuristic reason codes rather than claiming native model interpretability
+
+Lack of real banking telemetry:
+- real fraud platforms often use velocity, device, beneficiary, merchant, account, channel, and network signals
+- those fields are largely absent from the dataset, so the system cannot claim production-grade behavioral detection breadth
+
+Synthetic or demo gap:
+- the frontend stream and demo flows may rely on sampled or generated transaction payloads
+- these are useful for demonstration, but they are not the same as live transaction ingestion from a bank
+
+These challenges justify the project's careful scope definition and its emphasis on honest status labeling.
+
+# 14. Machine Learning Pipeline
+
+The machine learning pipeline is implemented primarily in `src/pipelines/run_model_workflow.py`.
+
+Pipeline stages:
+1. load the dataset and validate expected schema
+2. perform EDA and data-quality exports
+3. split the data into train, validation, and test partitions
+4. train a baseline logistic regression pipeline
+5. train an improved LightGBM candidate
+6. evaluate candidate performance using fraud-appropriate metrics
+7. perform threshold sweeps and capacity-driven threshold selection
+8. export figures, reports, benchmark tables, model artifacts, and metadata
+9. register model version information
+10. support MLflow-related experiment and artifact tracking
+
+Recorded split strategy from artifact outputs:
 - train rows: 199,364
 - validation rows: 42,721
 - test rows: 42,722
 - random seed: 42
 
-Two model tracks are present in the workflow:
-- baseline logistic regression pipeline with scaling
-- improved LightGBM candidate with tuned parameters
+Preprocessing:
+- the deployed artifact is a logistic regression pipeline that includes scaling behavior within the pipeline
+- runtime scoring uses the loaded artifact directly rather than reconstructing the model logic manually
 
-Conflict resolved:
-- some earlier documents emphasize LightGBM as the final model
-- the actual deployed artifact metadata selects the logistic regression pipeline
-- this master document therefore treats logistic regression as the production-aligned model and LightGBM as a benchmarked alternative, not the deployed default
+Baseline model:
+- logistic regression pipeline
 
-Model metadata confirms:
-- `selected_model`: `logistic_regression`
-- `model_type`: `logistic_regression_pipeline`
-- `dataset_path`: `data\\archive\\creditcard.csv`
-- `score_semantics`: `risk_score_uncalibrated`
-- threshold policy type: `top_k_rate`
-- `review_top_rate`: `0.01`
-- `high_top_rate`: `0.002`
+Improved candidate model:
+- LightGBM with tuned parameters recorded in the model selection summary
 
+Threshold tuning:
+- the project stores `threshold_review` and `threshold_high`
+- threshold selection is explicitly tied to review-capacity assumptions through a `top_k_rate` policy
 
-# 9. Model Evaluation
+Artifact export:
+- `final_model.joblib`
+- model metadata in `model_info.json`
+- benchmark and figure outputs under `artifacts/`
 
-Model evaluation emphasizes imbalanced-classification metrics and thresholded business behavior:
+Experiment tracking:
+- MLflow support is implemented in the repository and in the deployment stack
+- runtime MLflow traffic logging is configured in Docker Compose
+
+# 15. Model Evaluation
+
+The project evaluates models using metrics appropriate for highly imbalanced fraud detection.
+
+Metrics used:
 - ROC-AUC
 - PR-AUC / Average Precision
-- precision, recall, and F1 at selected thresholds
+- precision
+- recall
+- F1
 - confusion matrices
-- threshold-sweep analysis
-- feature-importance and SHAP outputs for benchmark inspection
+- threshold sweeps
 
-Validation-only model selection summary from `artifacts/reports/model_selection_summary.json`:
-- logistic regression validation PR-AUC: `0.6300872677700333`
-- LightGBM validation PR-AUC: `0.6289299179337815`
+Why PR-AUC matters:
+- in fraud operations, most transactions are legitimate
+- the bank does not only need a model that ranks fraud above non-fraud globally; it needs a model that yields useful precision in the top-scoring region that drives the review queue
+- for that reason, PR-AUC is closer to the operational question of whether analyst effort is concentrated on high-value cases
 
-Because the logistic regression pipeline achieved the slightly better validation PR-AUC, it was selected for deployment.
+Why ROC-AUC still matters:
+- it remains a useful general ranking metric
+- but it can appear strong even when rare-event precision is not operationally acceptable
 
-Test-set metrics for the deployed artifact from `artifacts/models/model_info.json`:
+## 15.1 Model Comparison Table
 
-At `threshold_review = 0.7391262534904803`:
-- precision: `0.14617169373549885`
-- recall: `0.8513513513513513`
-- F1: `0.2495049504950495`
-- ROC-AUC: `0.9652288754708565`
-- PR-AUC: `0.7694198862705721`
+| Model | Role | Validation PR-AUC | Validation ROC-AUC | Review Threshold | High Threshold | Selection Outcome |
+|---|---|---:|---:|---:|---:|---|
+| Logistic Regression Pipeline | Baseline and deployed model | 0.6301 | 0.9684 | 0.7391262534904803 | 0.9999047447184487 | Selected for deployment |
+| LightGBM Candidate | Improved benchmarked candidate | 0.6289 | 0.9288 | 0.0000003771 | 0.0002998399 | Benchmarked only |
 
-At `threshold_high = 0.9999047447184487`:
-- precision: `0.8428571428571429`
-- recall: `0.7972972972972973`
-- F1: `0.8194444444444444`
-- ROC-AUC: `0.9652288754708565`
-- PR-AUC: `0.7694198862705721`
+The deployed model is logistic regression. This is a critical implementation-aligned truth because some earlier project materials emphasized LightGBM. The artifact metadata and model selection summary clearly indicate that logistic regression is the final deployed artifact.
 
-Interpretation:
-- the `REVIEW` threshold is intentionally broader and recall-oriented to support analyst triage
-- the `HIGH` threshold is intentionally narrow and high-precision for stronger intervention
-- thresholds are chosen to match operational review capacity, not to maximize a single static metric
+## 15.2 Deployed Model Test Metrics
 
-Evaluation artifacts include:
-- `artifacts/figures/baseline_roc_curve.png`
-- `artifacts/figures/baseline_pr_curve.png`
-- `artifacts/figures/improved_roc_curve.png`
-- `artifacts/figures/improved_pr_curve.png`
-- `artifacts/figures/final_roc_curve.png`
-- `artifacts/figures/final_pr_curve.png`
-- `artifacts/figures/final_confusion_matrix.png`
-- `artifacts/figures/model_comparison.png`
-- `artifacts/figures/threshold_comparison.png`
-- `artifacts/figures/shap_summary.png`
-- `artifacts/benchmarks/model_comparison_table.csv`
-- `artifacts/benchmarks/threshold_comparison_table.csv`
+At `threshold_review`:
+- precision: 0.1462
+- recall: 0.8514
+- F1: 0.2495
+- ROC-AUC: 0.9652
+- PR-AUC: 0.7694
 
+At `threshold_high`:
+- precision: 0.8429
+- recall: 0.7973
+- F1: 0.8194
+- ROC-AUC: 0.9652
+- PR-AUC: 0.7694
 
-# 10. Decision Logic and Fraud Workflow
+These values support the business framing:
+- the `REVIEW` threshold is recall-oriented and suited to analyst triage
+- the `HIGH` threshold is high-precision and suited to stronger intervention
 
-The decision engine is implemented in `src/services/decision_service.py`.
+# 16. Risk Scoring and Decision Logic
 
-The policy is deterministic:
-- if `risk_score >= threshold_high`, assign `risk_tier = HIGH`
-- else if `risk_score >= threshold_review`, assign `risk_tier = REVIEW`
-- else assign `risk_tier = LOW`
+This section is the core operational bridge between ML output and fraud handling.
 
-The action mapping is:
-- `LOW` -> `decision_recommendation = ALLOW`
-- `REVIEW` -> `decision_recommendation = STEP_UP_AUTH` for digital channels, otherwise `MANUAL_REVIEW`
-- `HIGH` -> `decision_recommendation = BLOCK` when amount is at least 1500, otherwise `HOLD`
+## 16.1 `risk_score` Semantics
 
-Backward-compatible action labels are also returned:
+The system exposes `risk_score` as an uncalibrated risk score. The artifact metadata explicitly labels score semantics as `risk_score_uncalibrated`.
+
+This means:
+- `risk_score` is a ranking signal
+- larger values indicate higher relative concern under the deployed model
+- the value should not be interpreted as a calibrated probability of fraud
+
+This distinction is important for academic correctness, business governance, and honest system communication.
+
+## 16.2 Thresholds
+
+The deployed metadata stores two operational thresholds:
+- `threshold_review = 0.7391262534904803`
+- `threshold_high = 0.9999047447184487`
+
+These thresholds are capacity-driven, not arbitrary. The metadata states that they are chosen under a `top_k_rate` threshold policy:
+- review top rate: 1 percent
+- high top rate: 0.2 percent
+
+Business implication:
+- thresholds exist because analyst capacity is limited
+- the review queue must be selective enough to remain workable
+- the high-risk tier must remain precise enough to justify strong action
+
+## 16.3 Mapping Logic
+
+```text
+risk_score -> risk_tier -> decision_recommendation
+```
+
+The mapping implemented in the repository is:
+- if `risk_score < threshold_review`, then `risk_tier = LOW`
+- if `threshold_review <= risk_score < threshold_high`, then `risk_tier = REVIEW`
+- if `risk_score >= threshold_high`, then `risk_tier = HIGH`
+
+Decision recommendation mapping:
+- `LOW` -> `ALLOW`
+- `REVIEW` -> `STEP_UP_AUTH` for digital channels, otherwise `MANUAL_REVIEW`
+- `HIGH` -> `HOLD` by default, or `BLOCK` for sufficiently high transaction amount
+
+Legacy action labels also remain available for compatibility:
 - `allow`
 - `review`
 - `block`
 
-Reason-code generation is implemented in `src/services/reason_code_service.py`. It combines:
-- policy-derived signals such as `MODEL_HIGH_RISK_SCORE` and `MODEL_REVIEW_RISK_SCORE`
-- feature and metadata heuristics such as high amount, unusual time, velocity, new beneficiary, device mismatch, geographic anomaly, account-takeover pattern, and channel anomaly
+This separation is valuable because it distinguishes:
+- model evidence
+- operational priority
+- business action
 
-These reason codes are useful for operator interpretation but remain heuristic and non-causal.
+# 17. Fraud Workflow and Case Lifecycle
 
-The fraud workflow is:
-1. A scored request yields `risk_score`, `risk_tier`, and `decision_recommendation`.
-2. If the tier is `REVIEW` or `HIGH`, the backend creates an `alert` and a linked `case`.
-3. The case is initialized in status `NEW`.
-4. Timeline events are appended for transaction receipt, scoring, flagging, alert creation, and case assignment.
-5. Analysts can update case status, add notes, resolve outcomes, and inspect timelines.
-6. Metrics and audit records are updated throughout the workflow.
+The fraud workflow translates suspicious transaction handling into a structured operational process.
 
-Supported case statuses are:
+Operational steps:
+1. A transaction is scored.
+2. If the result falls in a suspicious tier, it is flagged.
+3. An `alert` is created.
+4. A linked `case` is created.
+5. The case status is initialized.
+6. An analyst performs an investigation.
+7. Timeline events are recorded throughout the workflow.
+8. A final case resolution is stored.
+
+## 17.1 Fraud Workflow Summary Table
+
+| Step | System Action | Output | Business Purpose |
+|---|---|---|---|
+| 1 | Validate request | Clean scoring input | Prevent invalid or misleading decisions |
+| 2 | Score transaction | `risk_score` | Rank transaction risk |
+| 3 | Apply policy | `risk_tier`, `decision_recommendation` | Translate ML output into operational action |
+| 4 | Create alert | `alert` | Surface suspicious transaction for review |
+| 5 | Create case | `case` | Persist investigation workflow state |
+| 6 | Record timeline | timeline events | Support traceability and auditability |
+| 7 | Analyst investigation | notes and status updates | Support human-in-the-loop review |
+| 8 | Resolution | final case outcome | Capture operational closure and future feedback value |
+
+## 17.2 Supported Case Statuses
+
+The repository supports these case lifecycle statuses:
 - `NEW`
 - `QUEUED`
 - `IN_REVIEW`
@@ -309,334 +671,417 @@ Supported case statuses are:
 - `RELEASED`
 - `RESOLVED`
 
+Business meaning:
+- `NEW` and `QUEUED` support intake and review ordering
+- `IN_REVIEW` and `ESCALATED` support investigation handling
+- `CONFIRMED_FRAUD` and `FALSE_POSITIVE` support outcome capture
+- `BLOCKED` and `RELEASED` reflect action outcomes
+- `RESOLVED` closes the case lifecycle
 
-# 11. Backend System Design
+The timeline model preserves event history across creation, scoring, flagging, assignment, and later lifecycle changes. This is important because banking fraud operations need more than a current state; they need a traceable process history.
 
-The backend is implemented as a FastAPI application in `src/api/main.py` with typed request and response models in `src/api/schemas.py`.
+# 18. Backend System Design
 
-Implemented endpoint groups:
+The backend is implemented using FastAPI and organized around explicit schemas and modular services.
 
-Scoring and system:
-- `GET /health`
-- `GET /features/schema`
-- `GET /features/random`
-- `GET /metrics`
-- `POST /predict`
-- `GET /stream/pull`
+Backend design elements:
+- FastAPI application lifecycle for model and repository initialization
+- request and response schemas defined with typed models
+- feature validation before scoring
+- dedicated scoring service for inference
+- dedicated decision service for `risk_tier` and `decision_recommendation`
+- dedicated reason code service for heuristic interpretability
+- case service for alert and case handling
+- repository abstraction with in-memory and SQL-backed implementations
+- configurable auth, RBAC, rate limiting, and audit behavior
 
-Alert and case workflow:
-- `GET /alerts`
-- `GET /alerts/{alert_id}`
-- `POST /alerts/{alert_id}/status`
-- `GET /cases`
-- `GET /cases/{case_id}`
-- `POST /cases/{case_id}/status`
-- `POST /cases/{case_id}/resolve`
-- `GET /cases/{case_id}/timeline`
-- `GET /audit/events`
+Persistence mode:
+- local default behavior can fall back to `in_memory_demo`
+- SQL persistence is implemented and used in Docker Compose through PostgreSQL
 
-Dataset utilities:
-- `GET /dataset/samples`
-- `GET /internal/dataset/samples`
+Security features:
+- bearer-token or API-key style auth
+- roles: `viewer`, `analyst`, `admin`
+- role-based dependencies for endpoint protection
+- configurable sliding-window rate limiting
+- audit-event recording without breaking API response flow
 
-The backend supports two feature input styles for `/predict`:
-- `features`: ordered numeric vector
-- `features_by_name`: numeric map aligned to model metadata
+## 18.1 API Endpoint Table
 
-Validation behavior includes:
-- rejection when both `features` and `features_by_name` are provided
-- rejection of non-finite numeric values
-- rejection of feature vectors that do not match the model's expected feature count
-- validation of timestamp and amount fields
+| Method | Endpoint | Purpose | Key Inputs | Key Outputs | Status |
+|---|---|---|---|---|---|
+| GET | `/health` | Health and model status | none | model status, thresholds, repository mode | Fully implemented |
+| GET | `/features/schema` | Feature contract discovery | none | feature names, expected count | Fully implemented |
+| GET | `/features/random` | Demo feature generation | optional params | generated features | Fully implemented |
+| GET | `/metrics` | Prometheus metrics | none | metrics payload | Fully implemented |
+| POST | `/predict` | Score transaction and apply policy | `features` or `features_by_name`, metadata | `risk_score`, `risk_tier`, `decision_recommendation`, alert/case ids | Fully implemented |
+| GET | `/stream/pull` | Return already scored stream events | `pace_ms`, `max_events` | scored event list | Fully implemented |
+| GET | `/alerts` | List alerts | status, limit | alert list | Fully implemented |
+| GET | `/alerts/{alert_id}` | Alert detail | path id | single alert | Fully implemented |
+| POST | `/alerts/{alert_id}/status` | Update alert-linked case status | case status, note, actor | updated case | Fully implemented |
+| GET | `/cases` | List cases | status, limit | case list | Fully implemented |
+| GET | `/cases/{case_id}` | Case detail | path id | case detail | Fully implemented |
+| POST | `/cases/{case_id}/status` | Update case status | case status, note, actor | updated case | Fully implemented |
+| POST | `/cases/{case_id}/resolve` | Resolve case | resolution, note, actor | resolved case | Fully implemented |
+| GET | `/cases/{case_id}/timeline` | Investigation timeline | path id | timeline events | Fully implemented |
+| GET | `/audit/events` | Audit event listing | filters | audit event list | Fully implemented |
+| GET | `/dataset/samples` | Dataset sample utility | `n`, strategy, seed | unlabeled samples | Fully implemented |
+| GET | `/internal/dataset/samples` | Protected labeled sample utility | token, params | labeled samples | Fully implemented |
 
-Security and operational middleware:
-- optional token-based authentication with role mapping (`viewer`, `analyst`, `admin`)
-- role-based endpoint access control
-- optional rate limiting by token or client IP
-- audit event capture integrated with case services
+# 19. Frontend System Design
 
-Persistence behavior:
-- implemented demo-grade in-memory repository for local or fallback use
-- implemented SQL repository with migrations and PostgreSQL support
-- Docker Compose config uses PostgreSQL-backed case persistence
+The frontend is a browser-based dashboard implemented with plain HTML, CSS, and JavaScript. It is not a mock-only interface; it is integrated with the backend APIs.
 
-This means persistent case storage is implemented, but not the default in all local environments.
+Frontend design includes:
+- connection health polling
+- model metadata display
+- streaming dashboard view
+- case review panel
+- display of `risk_score`, `risk_tier`, and `decision_recommendation`
+- reason code and summary display
+- case timeline inspection
+- case status and resolution controls
+- pagination and filters for analyst workflow handling
 
+Dashboard behavior:
+- the frontend can operate in live mode against the API
+- it can consume scored events from the pull-based stream endpoint
+- it supports analyst token usage through configurable UI inputs
 
-# 12. Frontend System Design
+Analyst workflow support:
+- alerts and cases are visible through queue-like review views
+- analysts can open cases, inspect status, review timeline context, and update workflow state
+- this supports a realistic decision-support interaction pattern rather than a simple model demo screen
 
-The frontend is implemented in plain HTML, CSS, and JavaScript rather than a heavy framework stack.
+Frontend classification:
+- backend-integrated: yes
+- partial: no, core workflow is integrated
+- demo-oriented: yes, in the sense that it supports local operational demonstration
+- mock-free or mixed: mostly mock-free for backend-integrated flows, though demo data and local assumptions remain present
 
-Primary files:
-- `frontend/index.html`
-- `frontend/app.js`
-- `frontend/ui.js`
-- `frontend/api-client.js`
-- `frontend/demo-data.js`
+This combination makes the frontend suitable for academic demonstration and defense because it shows how model output becomes analyst-facing operational workflow.
 
-Implemented frontend capabilities:
-- backend connection and health polling
-- streaming dashboard using `GET /stream/pull`
-- support for real-time scored event visualization
-- queue and case review view
-- display of `risk_score`, `risk_tier`, `decision_recommendation`, and reason codes
-- case timeline display
-- case status transitions and resolution actions
-- payload copy and re-score actions
-- pagination and filtering for feed and case views
+# 20. Monitoring and Observability
 
-The frontend assumes:
-- API base URL defaults to `http://localhost:8000`
-- an analyst token can be supplied in the UI
-- the dashboard expects a 30-feature backend contract
+Fraud systems require observability because operational failure can take several forms:
+- API failure or latency problems
+- queue overload
+- unexpected shifts in scoring distribution
+- case workflow bottlenecks
+- imbalance between alerts, confirmed fraud, and false positives
 
-Implemented frontend mode distinctions:
-- live API-backed scoring
-- random or dataset-driven stream consumption
-- analyst review workflow against the backend case APIs
+Prometheus metrics implemented in the backend include:
+- request counters
+- request latency histograms
+- scored transaction counts by tier
+- action and `decision_recommendation` counters
+- alert creation counters
+- case creation and case status transition counters
+- review queue size
+- confirmed fraud count
+- false positive count
+- aggregate score accumulation counters
 
-This is an implemented analyst demo interface, not only a mock UI.
+Grafana dashboards are provisioned in the deployment stack to visualize this data.
 
+MLflow runtime tracking:
+- the deployment stack includes runtime MLflow logging configuration for online traffic metrics
+- this connects model operations visibility with live API behavior
 
-# 13. Monitoring and Observability
+Operational value:
+- request latency metrics support technical reliability
+- fraud tier distribution supports drift suspicion or traffic-shape review
+- alert and case metrics support workforce planning
+- queue size supports escalation and staffing awareness
+- confirmed fraud and false positive counters support outcome monitoring and future policy refinement
 
-Monitoring is implemented across application metrics, alerting rules, dashboards, and runtime MLflow logging.
+Monitoring is essential in fraud operations because the system must be managed not only as software, but also as an ongoing operational control process.
 
-Application metrics in `src/monitoring/metrics.py` include:
-- `api_requests_total`
-- `api_request_latency_seconds`
-- `fraud_predictions_total`
-- `fraud_actions_total`
-- `risk_tier_total`
-- `decision_recommendations_total`
-- `fraud_alerts_total`
-- `fraud_cases_total`
-- `fraud_case_status_total`
-- `confirmed_fraud_total`
-- `false_positive_total`
-- `review_queue_size`
-- `risk_scores_sum`
-- `risk_scores_count`
+# 21. Deployment Architecture
 
-Operational observability assets:
-- Prometheus config: `deployment/prometheus/prometheus.yml`
-- Prometheus alert rules: `deployment/prometheus/alerts.yml`
-- Grafana dashboards: `deployment/grafana/dashboards/fraud_api.json` and `deployment/grafana/dashboards/mlflow_runtime.json`
-- MLflow runtime exporter: `deployment/mlflow/exporter.py`
+The deployment architecture is defined in `deployment/docker-compose.yml`.
 
-Monitoring scope:
-- HTTP request counts and latency
-- review queue growth
-- alert and case creation
-- case status transitions
-- confirmed fraud and false positive outcomes
-- runtime traffic logging into MLflow when enabled
+## 21.1 Deployment Topology Diagram
 
-Implementation status:
-- instrumentation is implemented
-- dashboard provisioning is implemented
-- alert rules are implemented
-- local evidence images exist under `artifacts/deploys`
-- full end-to-end monitoring stack was not re-run during this consolidation session
+```mermaid
+flowchart LR
+    U[User Browser] --> F[Frontend Container :8082]
+    F --> A[API Container :8000]
+    A --> P[(PostgreSQL :5432)]
+    A --> R[Prometheus Metrics Endpoint]
+    R --> M[Prometheus :9090]
+    M --> G[Grafana :3000]
+    A --> L[MLflow :5000]
+```
 
+## 21.2 Container Roles
 
-# 14. Deployment Architecture
+PostgreSQL:
+- durable storage for case persistence in Compose mode
 
-Deployment assets are centered around `deployment/docker-compose.yml`.
+API:
+- serves scoring, workflow, monitoring, and utility endpoints
+- mounts artifacts containing the deployed model
 
-Defined services:
-- `postgres`
-- `api`
-- `frontend`
-- `mlflow`
-- `prometheus`
-- `grafana`
+Frontend:
+- serves the analyst dashboard as static web assets
 
-Container characteristics:
-- the API container mounts `../artifacts` and uses the trained model artifact
-- the API container enables PostgreSQL-backed case persistence, token auth, rate limiting, and MLflow runtime logging
-- the frontend container serves the static dashboard on container port `8080`
-- Prometheus scrapes the API metrics endpoint and loads local alert rules
-- Grafana is provisioned with Prometheus as a datasource and dashboard JSON files
+MLflow:
+- supports experiment and runtime tracking visibility
 
-Default published ports in Compose:
-- PostgreSQL: `5432`
+Prometheus:
+- scrapes operational metrics from the API
+
+Grafana:
+- visualizes metrics and dashboards
+
+## 21.3 Ports
+
+Default host ports:
 - API: `8000`
-- frontend: host `8082` to container `8080`
+- frontend: `8082`
+- PostgreSQL: `5432`
 - MLflow: `5000`
 - Prometheus: `9090`
 - Grafana: `3000`
 
-Deployment evidence available in the repository:
-- `artifacts/deploys/docker-compose.png`
-- `artifacts/deploys/docker-terminal.png`
-- `artifacts/deploys/swagger-docs.png`
-- `artifacts/deploys/Prometheus-targets.png`
-- `artifacts/deploys/Prometheus-rules.png`
-- `artifacts/deploys/Grafana-dashboard.png`
+## 21.4 Persistence Configuration
 
-Implementation classification:
-- local container stack definition: implemented
-- service health checks: implemented for API, frontend, and PostgreSQL
-- repository evidence of prior stack bring-up: available
-- re-verification of live compose execution in this consolidation session: not performed
+In Docker Compose:
+- `CASE_REPOSITORY_MODE=postgres`
+- PostgreSQL DSN is provided to the API
+- automatic migration behavior is enabled
 
+## 21.5 Health Checks
 
-# 15. Testing and Validation
+Defined health checks include:
+- PostgreSQL readiness check
+- API `/health` check
+- frontend `index.html` check
 
-The repository contains automated tests across multiple layers:
-- `tests/unit/`
-- `tests/data/`
-- `tests/model/`
-- `tests/integration/`
-- `tests/test_frontend_api.py`
+## 21.6 Runtime Verification Status
+
+Implemented deployment assets:
+- Dockerfiles exist
+- Compose topology exists
+- health checks are defined
+- monitoring stack services are defined
+
+Current status in this report:
+- deployment assets are implemented
+- repository evidence of prior deployment exists under `artifacts/deploys`
+- full live-stack re-verification was not performed during the current report update
+
+This distinction is important to avoid overstating runtime evidence.
+
+# 22. Testing and Validation
+
+The repository includes multiple validation layers.
+
+Unit tests:
+- utility and preprocessing behavior
+
+Integration tests:
+- API health
+- prediction behavior
+- stream pull behavior
+- alert and case lifecycle workflow
+- security behavior
+- SQL persistence path
+
+Data tests:
+- dataset path handling
+- sample loading behavior
+
+Model tests:
+- training-artifact and loaded-model validation
+
+Frontend API tests:
+- smoke-style validation through `tests/test_frontend_api.py`
+
+System verification script:
 - `tests/verify_system.py`
 
-Current observed validation results in this environment:
-- focused run of `tests/unit` and `tests/integration`: 18 passed, 1 blocked by a local `pytest` temporary-directory permission issue affecting the SQL persistence test setup
-- broader full-suite run: 19 passed, 14 blocked by the same environment-level temp-directory permission issue
+## 22.1 Current Environment Verification
 
-What this means:
-- core API behavior, prediction flow, alert and case lifecycle flow, auth and audit flow, stream pull behavior, and utility logic are verified
-- the blocked failures are environment-related setup errors, not evidence of broken assertions in the application code
-- the SQL persistence path is implemented in code and targeted by tests, but full local test completion was blocked by temporary-directory access on this machine
+Observed in the current environment:
+- a focused run across `tests/unit` and `tests/integration` produced 18 passing tests
+- one SQL persistence integration test was blocked by a local Windows `pytest` temporary-directory permission issue
+- a broader test run produced 19 passing tests, with the remaining blocked tests failing for the same environment issue rather than assertion failures
 
-Repository-level quality assets:
-- `pytest.ini`
-- `conftest.py`
-- `.github/workflows/ci.yml`
-- `.github/workflows/docker.yml`
+## 22.2 What Is Verified
 
-Validation scope status:
-- backend contract validation: implemented and partially verified
-- workflow integration tests: implemented and verified
-- SQL persistence integration test: implemented but not verified in this environment due temp-path permissions
-- full end-to-end browser walkthrough: repository scripts and screenshots exist, but not re-executed during this consolidation session
+Verified:
+- core scoring and prediction endpoints
+- backend validation behavior
+- alert and case workflow
+- stream pull endpoint behavior
+- auth, RBAC, and audit behavior in tested paths
+- unit-level utility behavior
 
+## 22.3 What Was Blocked
 
-# 16. Responsible AI
+Blocked by environment issues:
+- tests that rely on temporary-directory setup affected by Windows permission errors
+- complete verification of SQL persistence test path under the current machine conditions
 
-The system is explicitly positioned as fraud decision support, not autonomous irreversible fraud adjudication.
+## 22.4 What Remains Unverified in This Report Update
 
-Responsible AI controls already implemented:
-- explicit `score_semantics` returned in API responses
-- separation of scoring from policy and workflow
-- human-review path for `REVIEW` outcomes
-- case lifecycle and timeline records for accountability
-- heuristic reason codes to improve interpretability
-- token protection for the labeled internal dataset sampling endpoint
+Not re-verified in the current report update:
+- full Docker Compose runtime bring-up
+- browser-based end-to-end walkthrough
+- complete model-test and data-test suite completion under a temp-path-safe environment
 
-Responsible AI constraints that remain important:
-- `risk_score` is uncalibrated and must not be treated as a true probability
-- reason codes are operational hints, not causal explanations
-- the dataset does not contain explicit protected attributes, so direct demographic fairness claims cannot be made
-- false positives and false negatives remain material business risks
+The testing narrative is therefore evidence-based and intentionally conservative.
 
-Security and privacy status must be described accurately:
-- basic authentication, RBAC, rate limiting, and audit-event collection are implemented and configurable
-- enterprise-grade identity integration, secret management, encrypted transport enforcement, and tamper-resistant audit storage are not fully implemented in this repository
+# 23. Responsible AI
 
-Recommended governance for production:
-- approve thresholds through policy ownership
-- review false positive and confirmed fraud outcomes regularly
-- monitor slice-level outcome patterns by amount, time, and channel
-- enforce stronger access controls and secure audit retention
+Responsible AI in this project is grounded in honest score semantics, human-in-the-loop review, and clear acknowledgment of limitations.
 
+Uncalibrated score semantics:
+- `risk_score` is explicitly labeled as uncalibrated
+- the system does not claim that score values are calibrated fraud probabilities
 
-# 17. Implementation Status
+Heuristic reason codes:
+- the reason code engine provides operational interpretation support
+- these outputs are heuristic and policy-informed, not causal explanations
 
-Fully implemented:
-- artifact-backed model loading and inference
+Human-in-the-loop review:
+- suspicious outcomes generate `alert` and `case` workflow records
+- analysts can inspect, update, and resolve cases
+- the system is therefore positioned as a decision-support system rather than an autonomous adjudication engine
+
+Protected-attribute limitations:
+- the dataset lacks explicit protected attributes
+- direct fairness claims across demographic groups cannot be made from the available data
+
+Fairness limitations:
+- slice-based monitoring can be discussed across amount, time, or channel
+- but this does not substitute for full fairness assessment on appropriate banking data
+
+Privacy and security notes:
+- configurable auth, RBAC, and rate limiting are implemented
+- internal labeled-data access is protected
+- the project does not yet provide enterprise-grade identity integration, transport controls, or tamper-resistant audit storage
+
+Governance recommendations:
+- require policy owner review of thresholds and handling logic
+- periodically review false positives and confirmed fraud outcomes
+- tighten access controls for production deployment
+- use investigation outcomes to improve future model governance and monitoring
+
+# 24. Implementation Status
+
+## 24.1 Fully Implemented
+
+- model artifact loading and inference
 - `risk_score`, `risk_tier`, and `decision_recommendation` generation
-- reason-code generation and summaries
-- alert creation for flagged transactions
-- case lifecycle APIs and timeline retrieval
+- reason summary output
+- alert and case creation
+- case lifecycle status updates
+- case timeline exposure
 - in-memory and SQL repository implementations
-- token auth, RBAC, rate limiting, and audit-event capture
-- streaming scored-event endpoint without exposing labels
-- vanilla-JS analyst dashboard integrated with backend APIs
-- Prometheus metrics and alert rules
-- Grafana dashboard provisioning
+- FastAPI backend and schema contracts
+- frontend dashboard with backend integration
+- token auth, RBAC, and rate limiting in configurable form
+- Prometheus metrics instrumentation
+- Grafana and MLflow deployment assets
 - Docker Compose stack definition
-- MLflow-based runtime traffic logging hooks
 
-Partially implemented:
-- complete verification of every deployment variant in the current environment
-- exhaustive frontend coverage for all operational edge cases
-- full production-grade security hardening and secrets management
-- fairness monitoring beyond proxy slices such as amount, time, and channel
+## 24.2 Partially Implemented
 
-Demo-level:
-- in-memory repository mode when running without a database URL
-- heuristic reason-code generation
-- local static-file frontend serving
-- local deployment-oriented tokens and admin credentials in Compose examples
+- heuristic interpretability through reason codes
+- end-to-end deployment verification across all environments
+- production-grade security hardening
+- fairness evaluation breadth
+- runtime verification breadth for all deployment variants
 
-Future work:
-- make durable SQL persistence the default across local and deployed modes
-- add stronger identity and secret-management integration
-- add model calibration or clearer percentile-centric presentation for operators
-- add drift detection and automated governance triggers
-- add closed-loop learning from `CONFIRMED_FRAUD` and `FALSE_POSITIVE` outcomes
+## 24.3 Demo-Level
 
+- in-memory persistence fallback
+- local token and credential setup
+- local static frontend serving assumptions
+- demo-oriented streaming and sample-generation flows
 
-# 18. Limitations
+## 24.4 Future Work
 
-Current limitations are as follows:
-- the deployed `risk_score` is a ranking signal and not a calibrated fraud probability
-- threshold policy is capacity-oriented and may need recalibration if operational review volume changes
-- fairness claims are limited by the absence of protected-attribute data in the source dataset
-- reason codes are heuristic and should not be interpreted as causal explanations
-- local default runtime may use non-durable in-memory case persistence unless SQL configuration is supplied
-- Docker deployment assets are present, but full live-stack validation was not rerun during this documentation consolidation
-- some tests remain blocked in this environment due Windows temporary-directory permissions rather than code assertions
+- stronger secrets and identity integration
+- calibration or percentile-oriented operator presentation
+- drift detection and policy-governance loops
+- richer banking features and closed-loop retraining
 
+## 24.5 Implementation Status Matrix
 
-# 19. Future Work
+| Capability | Status | Notes |
+|---|---|---|
+| Scoring API | Fully implemented | Artifact-backed model inference is live in code |
+| Decision policy | Fully implemented | Tier and recommendation mapping is explicit |
+| Alert creation | Fully implemented | Created for `REVIEW` and `HIGH` outcomes |
+| Case lifecycle | Fully implemented | Status transitions and resolution endpoints exist |
+| Investigation timeline | Fully implemented | Timeline endpoint and repository support exist |
+| Frontend analyst workflow | Fully implemented | Backend-integrated dashboard is present |
+| SQL persistence | Fully implemented | PostgreSQL repository path exists and Compose uses it |
+| Reason codes | Partially implemented | Heuristic, not causal |
+| Monitoring dashboards | Fully implemented | Prometheus/Grafana assets exist |
+| Runtime deployment verification | Unverified runtime | Assets exist, not fully re-run in this update |
+| Fairness validation | Future work | Limited by dataset and scope |
 
-Priority next steps are:
-- make PostgreSQL-backed persistence the default operational mode outside explicit demo scenarios
-- add calibrated score options or percentile-first presentation for analyst decisions
-- integrate stronger authentication, secret handling, and HTTPS-oriented deployment controls
-- extend monitoring with drift, data-quality, and SLA-oriented alerts
-- capture analyst case outcomes for feedback loops and retraining datasets
-- expand dashboard analytics for queue aging, analyst productivity, and outcome tracking
-- add reproducible deployment verification in CI for the full container stack
+# 25. Limitations
 
+The project's limitations should be stated explicitly.
 
-# 20. Conclusion
+- `risk_score` is uncalibrated and should not be interpreted as calibrated fraud probability.
+- Threshold behavior depends on assumed review capacity; different analyst capacity or risk appetite would require retuning.
+- The dataset lacks real banking telemetry and protected-attribute fields, limiting realism and fairness assessment.
+- Reason codes are heuristic and should not be treated as causal explanations.
+- Local fallback persistence can be in-memory and therefore non-durable outside SQL-backed modes.
+- Not all runtime deployment paths were re-verified in the current environment.
+- Some tests remain blocked by Windows temporary-directory permission issues in the current environment.
+- The project is suitable as a strong prototype and academic system submission, but not yet as a production banking control platform.
 
-The repository contains a real fraud decision-support system with a trained deployed model, a structured backend API, analyst workflow endpoints, a browser dashboard, monitoring integrations, and deployment assets.
+# 26. Future Work
 
-The correct implementation-aligned interpretation of the current project is:
-- the deployed model is the logistic regression pipeline, not LightGBM
-- persistent SQL-backed case storage is implemented, but not the fallback default in every environment
-- authentication, RBAC, rate limiting, and audit capture exist in code and Compose configuration
-- the system is suitable for demonstration and technical submission, but still requires production hardening and broader runtime verification for operational deployment
+Recommended next steps are:
+- make SQL-backed persistence the default operational mode outside explicit demo settings
+- strengthen authentication, authorization, and secret-management practices
+- add calibration or percentile-based score presentation to reduce misuse of raw score values
+- add drift detection and richer monitoring of data and decision distribution changes
+- add closed-loop retraining based on `CONFIRMED_FRAUD` and `FALSE_POSITIVE` case outcomes
+- enrich the feature space with more realistic banking telemetry
+- expand CI and deployment verification for the full container stack
+- add analyst productivity and queue-aging analytics
 
-This document supersedes the repository's prior fragmented Markdown reports and should be treated as the project's single documentation source of truth.
+# 27. Conclusion
 
+This project demonstrates a technically meaningful and operationally useful real-time banking transaction fraud detection and decision-support system. It combines machine learning, workflow services, analyst interaction, observability, and deployment assets into a coherent platform that goes beyond raw fraud classification.
 
-## Documentation Cleanup Summary
+From an academic perspective, the project shows:
+- appropriate problem framing under class imbalance
+- evidence-based metric selection
+- honest model-selection discussion
+- clear documentation of limitations
 
-Removed duplicates:
-- repeated project overviews spread across `README.md`, `docs/PROJECT_OVERVIEW.md`, `ARCHITECTURE.md`, and prior final-report variants
-- duplicated endpoint inventories across overview, specification, delivery, and audit documents
-- repeated quick-start and deployment command sections
-- repeated explanations of risk scoring, thresholding, monitoring, and dashboard behavior
+From a business perspective, the project shows:
+- why thresholding must reflect analyst capacity
+- why false positives and fraud loss must be balanced
+- why alerts, cases, timelines, and monitoring matter operationally
 
-Resolved conflicts:
-- standardized terminology to `risk_score`, `risk_tier`, `decision_recommendation`, `alert`, and `case`
-- resolved the model-selection conflict by aligning the document to `artifacts/models/model_info.json`, which selects logistic regression as the deployed artifact
-- corrected persistence status from "in-memory only" or "SQL not implemented" to "both implemented, with environment-dependent default"
-- corrected security status from "not implemented" to "implemented in configurable form, but not fully production-hardened"
-- replaced unverified claims about current Docker runtime health with implementation-backed and artifact-backed wording
-- replaced inaccurate blanket test-pass claims with the current environment-specific result, including the temp-directory permission limitation
+From an SPS perspective, the project shows:
+- explicit requirements
+- a clear architecture
+- defined interfaces and deployment topology
+- implementation-status classification
 
-Merged sections:
-- introduction and problem framing
-- architecture and module mapping
-- dataset, EDA, training, and evaluation
-- decision policy and fraud workflow
-- backend, frontend, monitoring, and deployment
-- testing, responsible AI, implementation status, limitations, and future work
+The system is strong for demonstration, defense, and academic submission. It also provides a credible foundation for future hardening toward more realistic operational deployment, while remaining honest about the work still required for real banking production use.
+
+# 28. Documentation Cleanup Summary
+
+The documentation consolidation achieved the following:
+
+- removed duplicated project narratives that previously existed across multiple Markdown reports
+- standardized terminology around `risk_score`, `risk_tier`, `decision_recommendation`, `alert`, and `case`
+- reconciled inconsistent statements about the deployed model by aligning to artifact truth
+- reconciled inconsistent statements about persistence by distinguishing implemented SQL support from local fallback behavior
+- reconciled security-status inconsistencies by distinguishing configurable implementation from production hardening
+- consolidated academic, business, and SPS perspectives into one source of truth
+- established `MASTER_REPORT.md` as the authoritative project report for submission, review, presentation preparation, and technical reference

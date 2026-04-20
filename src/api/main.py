@@ -30,7 +30,7 @@ from src.api.schemas import (
     UpdateAlertStatusRequest,
     UpdateCaseStatusRequest,
 )
-from src.data.samples import resolve_dataset_path, sample_dataset_rows
+from src.data.samples import resolve_effective_dataset_path, sample_dataset_rows
 from src.features.random_features import generate_random_features
 from src.models.loader import maybe_load_model_from_env
 from src.monitoring.metrics import (
@@ -67,11 +67,9 @@ async def lifespan(app: FastAPI):
     stream_simulator = None
     if loaded is not None:
         repo_root = Path(__file__).resolve().parents[2]
-        dataset_path = None
-        if loaded.dataset_path:
-            p = resolve_dataset_path(str(loaded.dataset_path), repo_root=repo_root)
-            if p.exists():
-                dataset_path = p
+        dataset_path = resolve_effective_dataset_path(model_dataset_path=loaded.dataset_path, repo_root=repo_root)
+        if dataset_path is not None and not dataset_path.exists():
+            dataset_path = None
 
         feature_columns = list(loaded.feature_columns) if loaded.feature_columns else ["Time", *[f"V{i}" for i in range(1, 29)], "Amount"]
         cfg = StreamConfig(
@@ -842,13 +840,13 @@ async def dataset_samples(
     loaded = getattr(app.state, "loaded_model", None)
     if loaded is None:
         raise HTTPException(status_code=503, detail="Model not loaded.")
-    if not loaded.dataset_path:
-        raise HTTPException(status_code=404, detail="Model metadata did not record dataset_path.")
     if not loaded.feature_columns:
         raise HTTPException(status_code=500, detail="Model metadata missing feature_columns.")
 
     repo_root = Path(__file__).resolve().parents[2]
-    dataset_path = resolve_dataset_path(loaded.dataset_path, repo_root=repo_root)
+    dataset_path = resolve_effective_dataset_path(model_dataset_path=loaded.dataset_path, repo_root=repo_root)
+    if dataset_path is None:
+        raise HTTPException(status_code=404, detail="Model metadata did not record dataset_path.")
     if not dataset_path.exists():
         raise HTTPException(status_code=404, detail=f"Dataset not found: {dataset_path}")
 
@@ -908,13 +906,13 @@ async def internal_dataset_samples(
     loaded = getattr(app.state, "loaded_model", None)
     if loaded is None:
         raise HTTPException(status_code=503, detail="Model not loaded.")
-    if not loaded.dataset_path:
-        raise HTTPException(status_code=404, detail="Model metadata did not record dataset_path.")
     if not loaded.feature_columns:
         raise HTTPException(status_code=500, detail="Model metadata missing feature_columns.")
 
     repo_root = Path(__file__).resolve().parents[2]
-    dataset_path = resolve_dataset_path(loaded.dataset_path, repo_root=repo_root)
+    dataset_path = resolve_effective_dataset_path(model_dataset_path=loaded.dataset_path, repo_root=repo_root)
+    if dataset_path is None:
+        raise HTTPException(status_code=404, detail="Model metadata did not record dataset_path.")
     if not dataset_path.exists():
         raise HTTPException(status_code=404, detail=f"Dataset not found: {dataset_path}")
 

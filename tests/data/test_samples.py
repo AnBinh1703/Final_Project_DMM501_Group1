@@ -6,7 +6,7 @@ import pandas as pd
 import pytest
 
 from src.data.dataset import load_training_dataframe
-from src.data.samples import resolve_dataset_path, sample_dataset_rows
+from src.data.samples import resolve_dataset_path, resolve_effective_dataset_path, sample_dataset_rows
 
 
 def _write_dataset_csv(tmp_path: Path, *, rows: list[dict]) -> Path:
@@ -24,6 +24,20 @@ def test_resolve_dataset_path_relative_resolves_under_repo_root(tmp_path: Path) 
     rel = Path("data") / "dataset.csv"
     resolved = resolve_dataset_path(str(rel), repo_root=tmp_path)
     assert resolved == (tmp_path / rel).resolve()
+
+
+def test_resolve_dataset_path_windows_style_relative_resolves_under_repo_root(tmp_path: Path) -> None:
+    resolved = resolve_dataset_path(r"data\archive\creditcard.csv", repo_root=tmp_path)
+    assert resolved == (tmp_path / "data" / "archive" / "creditcard.csv").resolve()
+
+
+def test_resolve_effective_dataset_path_prefers_env_override(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("DATASET_CSV_PATH", "data/archive/from-env.csv")
+    resolved = resolve_effective_dataset_path(
+        model_dataset_path=r"data\archive\from-metadata.csv",
+        repo_root=tmp_path,
+    )
+    assert resolved == (tmp_path / "data" / "archive" / "from-env.csv").resolve()
 
 
 def test_sample_dataset_rows_mixed_returns_features_and_optional_label(tmp_path: Path) -> None:

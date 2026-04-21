@@ -23,6 +23,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
 from src.data.dataset import load_training_dataframe
+from src.models.versioning import register_model_version
 
 try:
     from lightgbm import LGBMClassifier
@@ -236,7 +237,39 @@ def run_training(
     }
 
     metrics_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
+
+    tracking = register_model_version(
+        artifacts_root=artifacts_path,
+        model_path=model_path,
+        model_info=model_info,
+        run_context={
+            "pipeline": "train_pipeline",
+            "data_source": source,
+            "dataset_rows": int(df.shape[0]),
+            "dataset_features": int(X.shape[1]),
+            "target_col": target_col,
+            "fast": bool(fast),
+            "final_model_name": report["final_model_name"],
+            "threshold_review": float(threshold_review),
+            "threshold_high": float(threshold_high),
+            "test_pr_auc": float(final_test_metrics_high["pr_auc"]),
+            "test_roc_auc": float(final_test_metrics_high["roc_auc"]),
+        },
+        extra_artifacts=[metrics_path],
+    )
+
+    model_info = dict(tracking["model_info"])
+    model_info["tracking_files"] = {
+        "version_index": tracking["index_path"],
+        "run_history_jsonl": tracking["history_jsonl"],
+        "latest_run": tracking["latest_json"],
+    }
     model_info_path.write_text(json.dumps(model_info, indent=2), encoding="utf-8")
+
+    report["model_version"] = str(tracking["model_version"])
+    report["run_id"] = str(tracking["run_id"])
+    report["version_dir"] = str(tracking["version_dir"])
+    metrics_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
 
     if not fast:
         try:
@@ -267,6 +300,9 @@ def run_training(
         "model_path": str(model_path),
         "metrics_path": str(metrics_path),
         "model_info_path": str(model_info_path),
+        "model_version": str(tracking["model_version"]),
+        "run_id": str(tracking["run_id"]),
+        "version_dir": str(tracking["version_dir"]),
         "report": report,
     }
 

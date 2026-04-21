@@ -1,7 +1,7 @@
 {
   "model_type": "logistic_regression_pipeline",
   "selected_model": "logistic_regression",
-  "dataset_path": "data\\archive\\creditcard.csv",
+  "dataset_path": "data/archive/creditcard.csv",
   "fraud_base_rate": 0.001727485630620034,
   "feature_columns": [
     "Time",

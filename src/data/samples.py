@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
+import os
 from pathlib import Path
 
 import numpy as np
@@ -16,10 +17,23 @@ def _load_dataset_cached(path_str: str, feature_columns: tuple[str, ...], target
 
 
 def resolve_dataset_path(dataset_path: str, repo_root: Path) -> Path:
-    p = Path(dataset_path)
+    # Metadata can be produced on Windows and consumed on Linux CI.
+    # Normalize separators so "data\\archive\\creditcard.csv" resolves cross-platform.
+    p = Path(dataset_path.replace("\\", "/")).expanduser()
     if p.is_absolute():
         return p
     return (repo_root / p).resolve()
+
+
+def resolve_effective_dataset_path(*, model_dataset_path: str | None, repo_root: Path) -> Path | None:
+    env_path = os.getenv("DATASET_CSV_PATH", "").strip()
+    if env_path:
+        return resolve_dataset_path(env_path, repo_root=repo_root)
+
+    if model_dataset_path and str(model_dataset_path).strip():
+        return resolve_dataset_path(str(model_dataset_path).strip(), repo_root=repo_root)
+
+    return None
 
 
 def sample_dataset_rows(

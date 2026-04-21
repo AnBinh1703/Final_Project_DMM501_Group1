@@ -32,6 +32,8 @@ from sklearn.model_selection import ParameterGrid, train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
+from src.models.versioning import register_model_version
+
 
 def _mkdir(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True)
@@ -854,6 +856,38 @@ def run_workflow(
         },
         "selection_timestamp_utc": selection_timestamp,
     }
+    tracking = register_model_version(
+        artifacts_root=root,
+        model_path=final_model_path,
+        model_info=model_info,
+        run_context={
+            "pipeline": "run_model_workflow",
+            "dataset_path": str(dataset_path),
+            "selected_model": selected_model,
+            "rows": int(df.shape[0]),
+            "features": int(len(feature_cols)),
+            "threshold_review": float(final_threshold_review),
+            "threshold_high": float(final_threshold_high),
+            "review_top_rate": float(review_top_rate),
+            "high_top_rate": float(high_top_rate),
+            "test_pr_auc": float(final_test_high["pr_auc"]),
+            "test_roc_auc": float(final_test_high["roc_auc"]),
+        },
+        extra_artifacts=[
+            reports_dir / "model_selection_summary.json",
+            reports_dir / "benchmark_summary.md",
+            benchmarks_dir / "model_comparison_table.csv",
+            benchmarks_dir / "threshold_comparison_table.csv",
+            reports_dir / "model_validation_checks.json",
+        ],
+    )
+
+    model_info = dict(tracking["model_info"])
+    model_info["tracking_files"] = {
+        "version_index": tracking["index_path"],
+        "run_history_jsonl": tracking["history_jsonl"],
+        "latest_run": tracking["latest_json"],
+    }
     _save_json(models_dir / "model_info.json", model_info)
 
     benchmark_summary_md = (
@@ -877,6 +911,9 @@ def run_workflow(
         "threshold_review": float(final_threshold_review),
         "threshold_high": float(final_threshold_high),
         "selected_model": selected_model,
+        "model_version": str(tracking["model_version"]),
+        "run_id": str(tracking["run_id"]),
+        "version_dir": str(tracking["version_dir"]),
         "artifacts_root": str(root),
     }
 

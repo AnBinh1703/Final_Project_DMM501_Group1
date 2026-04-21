@@ -2,141 +2,249 @@
 
 Repository: Final_Project_DMM501_Group1
 
-This project is an end-to-end ML-powered fraud decision-support platform for banking transactions.
+This repository implements a complete fraud decision-support platform for banking transactions.
 
-It is not only a binary classifier demo.
+It combines machine learning, policy-based decisions, analyst workflow APIs, frontend operations, observability, and containerized MLOps deployment.
 
-The runtime workflow implemented in the API is:
-Incoming Transaction -> Validation -> Feature Preparation -> Risk Scoring -> Decision Policy -> Reason Codes -> Alert/Case Creation -> Case Lifecycle Tracking -> Timeline Events -> Metrics
+## Full Project Overview
 
-## Current Implementation Status
+Business objective:
 
-Implemented now:
-- ML risk scoring API with strict feature validation
-- Decision policy engine with LOW/REVIEW/HIGH tiers
-- Decision recommendations (`ALLOW`, `STEP_UP_AUTH`, `MANUAL_REVIEW`, `HOLD`, `BLOCK`)
-- Reason-code generation (demo-level heuristic + policy-based)
-- Alert and case lifecycle APIs
-- Investigation timeline per case
-- Frontend queue/detail/timeline integration
-- Prometheus metrics and alerts for operational workflow
-- Docker Compose configuration for API, frontend, Prometheus, Grafana, MLflow
-- Test suite with integration coverage for case workflow
+- Detect suspicious transactions early.
+- Prioritize limited analyst review capacity.
+- Support consistent operational decisions with traceable evidence.
+
+System objective:
+
+- Convert transaction features into risk_score.
+- Map score to risk_tier and decision_recommendation.
+- Create and track alerts and cases.
+- Expose monitoring metrics for engineering and operations.
+
+Runtime flow:
+
+Incoming Transaction -> Validation -> Feature Preparation -> Risk Scoring -> Decision Policy -> Reason Codes -> Alert and Case Creation -> Case Lifecycle Tracking -> Timeline Events -> Metrics and Dashboards
+
+## Full Project Preview
+
+### Core layers
+
+- Data and feature layer: dataset ingestion, schema handling, feature validation.
+- ML layer: baseline and improved model training, evaluation, threshold policy output.
+- API layer: scoring, streaming, alert and case workflow endpoints.
+- Frontend layer: analyst queue, case detail, decision support, timeline operations.
+- Monitoring layer: Prometheus metrics, Grafana dashboards, alert rules.
+- MLOps layer: MLflow tracking, Docker Compose orchestration, test and CI workflows.
+
+### Repository preview
+
+```text
+src/
+  api/            # FastAPI endpoints and schemas
+  services/       # scoring, decision, reason code, case services
+  repositories/   # in-memory and SQL persistence paths
+  pipelines/      # model workflow and training pipelines
+  monitoring/     # Prometheus metrics and MLflow runtime tracking
+frontend/         # analyst dashboard UI and API client
+deployment/       # docker compose, Dockerfiles, Prometheus, Grafana, MLflow
+artifacts/        # models, figures, reports, benchmarks, deploy screenshots
+tests/            # unit, data, model, integration, system checks
+docs/             # architecture, specification, deployment, responsible AI
+```
+
+## Analyst Preview and Workflow
+
+### Analyst dashboard (live)
+
+![Analyst dashboard live](artifacts/figures/frontend_dashboard_live.png)
+
+### Analyst dashboard (stream mode)
+
+![Analyst dashboard stream mode](artifacts/figures/frontend_dashboard_streaming.png)
+
+### Analyst operations sequence
+
+1. Pull scored events or submit transaction for scoring.
+2. Inspect risk_tier and decision_recommendation.
+3. Review reason codes and transaction context.
+4. Update case status through investigation lifecycle.
+5. Resolve outcome as confirmed fraud or false positive.
+6. Use timeline history for audit and reporting.
+
+### Analyst-facing capability status
+
+- Alert queue and case listing: implemented.
+- Case detail with reason codes: implemented.
+- Case status transition APIs: implemented.
+- Case resolution and timeline endpoints: implemented.
+- Frontend integration for queue and timeline: implemented.
+
+## Architecture and API Preview
+
+### API contract screenshot
+
+![Swagger docs](artifacts/deploys/swagger-docs.png)
+
+### Core endpoints
+
+Scoring and system:
+
+- POST /predict
+- GET /health
+- GET /metrics
+- GET /stream/pull
+
+Alert and case workflow:
+
+- GET /alerts
+- GET /alerts/{alert_id}
+- POST /alerts/{alert_id}/status
+- GET /cases
+- GET /cases/{case_id}
+- POST /cases/{case_id}/status
+- POST /cases/{case_id}/resolve
+- GET /cases/{case_id}/timeline
+
+Utilities:
+
+- GET /features/schema
+- GET /features/random
+- GET /dataset/samples
+- GET /internal/dataset/samples
+
+## Machine Learning and Decision Policy Preview
+
+Key model design points:
+
+- Handles highly imbalanced fraud data.
+- Exports deployable model artifacts and metadata.
+- Uses threshold policy for review and high-risk action tiers.
+- Tracks experiments and runtime traffic metrics with MLflow.
+
+Score semantics:
+
+- risk_score is treated as risk_score_uncalibrated.
+- It is a ranking signal for decision support, not calibrated fraud probability.
+
+Model evidence visuals:
+
+![Final PR curve](artifacts/figures/final_pr_curve.png)
+
+![Final ROC curve](artifacts/figures/final_roc_curve.png)
+
+![Final confusion matrix](artifacts/figures/final_confusion_matrix.png)
+
+## Monitoring and MLOps Preview
+
+### Monitoring dashboards
+
+![Grafana dashboard](artifacts/deploys/Grafana-dashboard.png)
+
+![Prometheus targets](artifacts/deploys/Prometheus-targets.png)
+
+### Deployment evidence
+
+![Docker deployment terminal](artifacts/deploys/docker-terminal.png)
+
+Monitoring and runtime tracking highlights:
+
+- Prometheus metrics for requests, latency, tier distribution, case outcomes.
+- Alert rules for reliability and traffic behavior.
+- MLflow experiment for online traffic metrics:
+  experiment name: fraud-runtime-traffic
+  run name: api-online-traffic
+  metrics: traffic_requests_total, traffic_stream_pull_calls_total, traffic_scored_events_total
+
+## Implementation Status
+
+Implemented:
+
+- End-to-end scoring and decision APIs.
+- Alert and case lifecycle with timeline.
+- Frontend analyst workflow integration.
+- Prometheus and Grafana stack.
+- MLflow training and runtime traffic tracking.
+- Docker Compose stack for local deployment.
 
 Partially implemented:
-- Frontend runtime manually verified in this session: not executed (code aligned, tests passing)
-- Grafana dashboard panels for all newly added case metrics: partial
 
-Demo-level simulated:
-- Persistence layer for alerts/cases is in-memory (non-durable)
+- Full Grafana panel depth for all newly added operational metrics.
 
-Future enhancement:
-- Durable DB persistence
-- Auth/RBAC and rate limiting
-- Closed-loop retraining from case outcomes
-- Drift detection and model governance automation
+Demo-level behavior:
 
-## Verified in This Session
+- In-memory repository mode for simplified local demo.
+- SQL repository path is present and covered by integration tests.
 
-- Full test suite passed: `30 passed`
-- New integration workflow test passed for:
-  - `/predict` -> flagged case
-  - `/alerts` and `/alerts/{id}`
-  - `/alerts/{id}/status`
-  - `/cases/{id}/resolve`
-  - `/cases/{id}/timeline`
-- Docker Compose config validated with `docker compose config`
+## Quick Start
 
-## Core API Endpoints
+Fastest local path:
 
-### Scoring and System Endpoints
-- `POST /predict`
-- `GET /health`
-- `GET /metrics`
-- `GET /stream/pull`
-
-### Alert and Case Endpoints
-- `GET /alerts`
-- `GET /alerts/{alert_id}`
-- `POST /alerts/{alert_id}/status`
-- `GET /cases`
-- `GET /cases/{case_id}`
-- `POST /cases/{case_id}/status`
-- `POST /cases/{case_id}/resolve`
-- `GET /cases/{case_id}/timeline`
-
-### Data Utility Endpoints
-- `GET /features/schema`
-- `GET /features/random`
-- `GET /dataset/samples`
-- `GET /internal/dataset/samples` (token-protected)
-
-## Score Semantics
-
-`risk_score` is explicitly treated as:
-`risk_score_uncalibrated`
-
-This is a ranking signal, not a calibrated fraud probability.
-
-## Local Quick Start
-
-### 1) Environment
 ```bash
-python3 -m venv .venv
+bash ./rune2e.sh
+```
+
+Manual local path:
+
+```bash
+python -m venv .venv
+```
+
+Windows PowerShell:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+```
+
+Linux or macOS:
+
+```bash
 source .venv/bin/activate
+```
+
+```bash
 pip install -r requirements.txt
-```
-
-### 2) Train/refresh artifacts (optional if artifacts already exist)
-```bash
-python -m src.pipelines.run_model_workflow \
-  --data-path data/archive/creditcard.csv \
-  --artifacts-root artifacts
-```
-
-### 3) Run API
-```bash
+python -m src.pipelines.run_model_workflow --data-path data/archive/creditcard.csv --artifacts-root artifacts
 uvicorn src.api.main:app --host 0.0.0.0 --port 8000
-```
-
-### 4) Run frontend
-```bash
 cd frontend
-python3 -m http.server 8082 --bind 127.0.0.1
+python -m http.server 8082 --bind 127.0.0.1
 ```
 
-### 5) Run tests
-```bash
-python -m pytest -q
-```
-
-## Docker Compose
+## Docker Deployment
 
 ```bash
-docker compose -f deployment/docker-compose.yml up --build
+docker compose -f deployment/docker-compose.yml up --build -d
 ```
 
-Service ports:
-- API: 8000
-- Frontend: 8082
-- Prometheus: 9090
-- Grafana: 3000
-- MLflow: 5000
+Service URLs:
 
-## Documentation Map
+- API: <http://localhost:8000/docs>
+- Frontend: <http://localhost:8082/index.html>
+- Prometheus: <http://localhost:9090>
+- Grafana: <http://localhost:3000>
+- MLflow: <http://localhost:5000>
 
-Primary upgrade and audit report:
-- `docs/FINAL_DECISION_SUPPORT_UPGRADE_REPORT.md`
+## Validation Snapshot
 
-Architecture and specification:
-- `ARCHITECTURE.md`
-- `SYSTEM_SPECIFICATION_DOCUMENT.md`
-- `PROJECT_OVERVIEW.md`
-- `RESPONSIBLE_AI.md`
-- `DEPLOYMENT_REPORT.md`
+Latest targeted checks in this workspace:
 
-## Important Notes for Evaluators
+- Unit plus data tests: 14 passed.
+- Integration tests: 17 passed.
+- Docker Compose config validates successfully.
+- MLflow runtime traffic metrics verified in containerized flow.
 
-- Claims in docs are aligned to implementation and tests in this branch.
-- If a capability is not runtime-verified in this environment, it is labeled explicitly.
-- Case persistence is currently in-memory by design for demo and testability.
+## Documentation and Report Map
+
+Primary docs:
+
+- [ARCHITECTURE.md](ARCHITECTURE.md)
+- [docs/QUICK_START.md](docs/QUICK_START.md)
+- [docs/SYSTEM_SPECIFICATION_DOCUMENT.md](docs/SYSTEM_SPECIFICATION_DOCUMENT.md)
+- [docs/RESPONSIBLE_AI.md](docs/RESPONSIBLE_AI.md)
+- [docs/DEPLOYMENT_REPORT.md](docs/DEPLOYMENT_REPORT.md)
+- [docs/FINAL_DECISION_SUPPORT_UPGRADE_REPORT.md](docs/FINAL_DECISION_SUPPORT_UPGRADE_REPORT.md)
+
+## Notes for Evaluators
+
+- This README is intended as a full-project preview for technical and non-technical reviewers.
+- Claims are aligned with implemented code and test evidence.
+- For reliable testing, avoid running local uvicorn and Docker API on the same host port at the same time.

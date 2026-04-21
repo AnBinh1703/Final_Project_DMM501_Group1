@@ -36,6 +36,11 @@ services:
       RATE_LIMIT_ENABLED: "true"
       RATE_LIMIT_REQUESTS: "240"
       RATE_LIMIT_WINDOW_SECONDS: "60"
+      MLFLOW_RUNTIME_ENABLED: "true"
+      MLFLOW_RUNTIME_TRACKING_URI: "http://mlflow:5000"
+      MLFLOW_RUNTIME_EXPERIMENT: "fraud-runtime-traffic"
+      MLFLOW_RUNTIME_RUN_NAME: "api-online-traffic"
+      MLFLOW_RUNTIME_LOG_EVERY: "20"
     volumes:
       - ../artifacts:/app/artifacts
     ports:
@@ -79,6 +84,7 @@ services:
       exec mlflow server
       --host 0.0.0.0
       --port 5000
+      --allowed-hosts '*'
       --backend-store-uri sqlite:////mlflow/mlflow.db
       --default-artifact-root /mlflow/artifacts"
     volumes:

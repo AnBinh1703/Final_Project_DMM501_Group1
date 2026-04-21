@@ -2,9 +2,12 @@
 
 \usepackage[margin=1in]{geometry}
 \usepackage{graphicx}
+\graphicspath{{../artifacts/figures/}{../artifacts/deploys/}}
 \usepackage{booktabs}
 \usepackage{longtable}
 \usepackage{array}
+\usepackage{xcolor}
+\usepackage{listings}
 \usepackage{hyperref}
 \usepackage{enumitem}
 \usepackage{float}
@@ -19,6 +22,16 @@
 
 \setlist[itemize]{leftmargin=1.5em}
 \newcommand{\code}[1]{\texttt{#1}}
+
+\lstdefinestyle{codeblock}{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  columns=fullflexible,
+  frame=single,
+  showstringspaces=false,
+  backgroundcolor=\color{gray!5}
+}
+\lstset{style=codeblock}
 
 \title{Complete Fraud Detection Report\\Real-Time Banking Transaction Fraud Detection and Decision Support System}
 \author{Repository: \code{Final_Project_DMM501_Group1}}
@@ -83,6 +96,25 @@ Fraud is extremely rare in the data. The generated class distribution report sho
 
 The feature set has important limitations for banking interpretation. Most predictors are PCA-transformed variables rather than business-readable fields such as merchant category, destination account, device reputation, customer tenure, or beneficiary risk.
 
+\subsection{Dataset figures}
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.78\textwidth]{class_distribution.png}
+\caption{Class imbalance in the benchmark dataset (fraud vs non-fraud).}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{amount_distribution.png}
+\caption{Transaction amount distribution.}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{time_distribution.png}
+\caption{Transaction time distribution.}
+\end{figure}
+
 \section{Data Challenges}
 The first data challenge is extreme class imbalance. Because fraud is rare, a classifier can produce deceptively strong aggregate metrics while still missing many fraudulent transactions or generating too many false alerts. This is why the repository emphasizes PR-AUC, threshold tuning, and operating-point metrics instead of generic accuracy.
 
@@ -113,6 +145,44 @@ LightGBM (Review) & 0.0000004 & 0.1330 & 0.7700 & 0.2270 & 0.9288 & 0.6290 & Ben
 \end{table}
 
 The repository also stores the final deployed evaluation metrics at the operating thresholds used for decision support. At the review threshold, precision is 0.1462 and recall is 0.8514. At the high threshold, precision is 0.8429 and recall is 0.7973. These figures show the trade-off between broader queue capture at the review threshold and tighter containment at the high threshold.
+
+\subsection{Model evaluation figures}
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{model_comparison.png}
+\caption{Model benchmark comparison summary from saved artifacts.}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.49\textwidth]{final_pr_curve.png}
+\includegraphics[width=0.49\textwidth]{final_roc_curve.png}
+\caption{Final deployed model PR curve (left) and ROC curve (right).}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.78\textwidth]{final_confusion_matrix.png}
+\caption{Final deployed model confusion matrix at the selected operating point.}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{threshold_comparison.png}
+\caption{Threshold comparison evidence supporting review/high policy tiers.}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{final_feature_importance.png}
+\caption{Feature importance evidence from saved artifacts (model-dependent).}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{shap_summary.png}
+\caption{SHAP summary plot from saved artifacts (interpretation aid; not causal proof).}
+\end{figure}
 
 \section{Risk Scoring and Decision Logic}
 The API exposes \code{risk_score} in the range \([0,1]\), but this score is explicitly described in the repository as uncalibrated. It should therefore be interpreted as a ranking signal rather than a calibrated fraud probability.
@@ -191,6 +261,30 @@ The backend is implemented as a FastAPI application. It loads the trained model 
 
 The key backend services are the scoring service, decision service, reason code service, and case service. The core scoring endpoint is \code{POST /predict}. Supporting endpoints include health, metrics, stream simulation, feature schema access, dataset sampling, alert retrieval, case retrieval, status updates, case resolution, and timeline retrieval.
 
+\subsection{Core request flow: \code{POST /predict}}
+At a high level, the backend converts a prediction request into operational outputs through the following deterministic sequence.
+
+\begin{lstlisting}[language=Python]
+request -> validate schema + auth + rate limit
+       -> resolve features (features OR features_by_name)
+       -> validate feature vector length and numeric finiteness
+       -> score_transaction(model, features) -> risk_score
+       -> decide_risk_action(risk_score, thresholds) -> risk_tier, action, recommendation
+       -> generate_reason_codes(...) -> reason_codes + summary
+       -> if risk_tier in {REVIEW, HIGH}: create alert + case + timeline events
+       -> record Prometheus metrics + audit event
+       -> return PredictResponse(...)
+\end{lstlisting}
+
+Key implementation references: request handling in \code{src/api/main.py}, scoring in \code{src/services/scoring_service.py}, decision logic in \code{src/services/decision_service.py}, workflow orchestration in \code{src/services/case_service.py}, and persistence in \code{src/repositories/}.
+
+\subsection{API contract evidence}
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{swagger-docs.png}
+\caption{Swagger/OpenAPI documentation for the FastAPI backend (local deployment evidence screenshot).}
+\end{figure}
+
 \subsection{API endpoint table}
 \begin{longtable}{p{0.22\linewidth}p{0.1\linewidth}p{0.42\linewidth}p{0.16\linewidth}}
 \toprule
@@ -226,6 +320,13 @@ The implemented frontend includes a dashboard view for live stream control and s
 
 The frontend also displays a clear score semantics cue stating that the score is uncalibrated rather than a true fraud probability. The UI is therefore more than a visualization layer; it acts as the client for analyst operations against the backend's \code{alert} and \code{case} APIs.
 
+\subsection{Frontend figures}
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{frontend_dashboard.png}
+\caption{Analyst dashboard view (local deployment evidence screenshot).}
+\end{figure}
+
 \section{Monitoring and Observability}
 The backend exposes Prometheus metrics and includes Grafana dashboard configuration plus MLflow runtime tracking. Monitoring is critical in fraud systems because operational failure can arise from more than model degradation. High latency, queue buildup, false-positive spikes, or unusually low scoring traffic can each undermine fraud operations even when the model artifact itself is unchanged.
 
@@ -235,10 +336,90 @@ The implemented Prometheus alert rules include high 5xx error rate, high p95 API
 
 MLflow runtime tracking is also implemented. The tracker records runtime traffic metrics such as total requests, predict calls, stream pulls, scored events, average \code{risk_score}, tier totals, HTTP status families, and decision totals.
 
+\subsection{Monitoring figures}
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{Prometheus-targets.png}
+\caption{Prometheus scrape targets (deployment evidence screenshot).}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{Prometheus-rules.png}
+\caption{Prometheus alert rules loaded and evaluated (deployment evidence screenshot).}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{Grafana-dashboard.png}
+\caption{Grafana monitoring dashboard for the fraud API (deployment evidence screenshot).}
+\end{figure}
+
 \section{Deployment Architecture}
 The repository includes a Docker Compose deployment that orchestrates the broader system end to end. The defined services are API, frontend, Prometheus, Grafana, MLflow, and PostgreSQL.
 
 The API container loads the saved fraud model and mounts the artifacts volume. The frontend container serves the analyst dashboard. Prometheus scrapes the API metrics endpoint and loads alert rules. Grafana reads provisioned dashboards. MLflow hosts experiment and runtime tracking. PostgreSQL provides the durable repository option when the API is configured for SQL persistence.
+
+\subsection{Docker Compose topology (evidence)}
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{docker-compose.png}
+\caption{Docker Compose topology screenshot (deployment evidence).}
+\end{figure}
+
+\subsection{Local deployment steps}
+The recommended demo deployment path is Docker Compose:
+
+\begin{lstlisting}[language=bash]
+# From repo root:
+docker compose -f deployment/docker-compose.yml up --build
+\end{lstlisting}
+
+Key service URLs (default ports):
+\begin{itemize}
+  \item API docs: \code{http://localhost:8000/docs}
+  \item Frontend: \code{http://localhost:8082/}
+  \item Prometheus: \code{http://localhost:9090/}
+  \item Grafana: \code{http://localhost:3000/} (admin password configured by \code{GF\_SECURITY\_ADMIN\_PASSWORD})
+  \item MLflow: \code{http://localhost:5000/}
+\end{itemize}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{docker-terminal.png}
+\caption{Local \code{docker compose} up and running services (deployment evidence).}
+\end{figure}
+
+\subsection{Deployment configuration (selected environment variables)}
+The deployment uses environment variables to control model selection, persistence mode, authentication, and monitoring integration. The most important variables are:
+
+\begin{table}[H]
+\centering
+\begin{tabular}{p{0.32\linewidth}p{0.58\linewidth}}
+\toprule
+Variable & Meaning \\
+\midrule
+\code{MODEL\_PATH} & Path to the deployed artifact inside the API container (mounted from \code{artifacts/}). \\
+\code{MODEL\_VERSION} & A human-readable identifier returned in \code{/health} and responses for traceability. \\
+\code{CASE\_REPOSITORY\_MODE} & \code{memory} (demo) or \code{postgres} (durable storage). \\
+\code{CASE\_DB\_URL} & SQLAlchemy connection URL for PostgreSQL when \code{postgres} is enabled. \\
+\code{CASE\_DB\_AUTO\_MIGRATE} & When \code{true}, applies DB schema migrations at startup (demo convenience). \\
+\code{API\_AUTH\_ENABLED} & When enabled, requires a token for protected endpoints. \\
+\code{API\_TOKENS} & Token-to-role mapping used for viewer/analyst/admin authorization. \\
+\code{RATE\_LIMIT\_ENABLED} & Enables request rate limiting middleware. \\
+\code{MLFLOW\_RUNTIME\_ENABLED} & Enables MLflow runtime traffic tracking. \\
+\code{MLFLOW\_RUNTIME\_TRACKING\_URI} & MLflow server URI used by the runtime tracker. \\
+\bottomrule
+\end{tabular}
+\caption{Selected deployment environment variables.}
+\end{table}
+
+\subsection{CI/CD automation (GitHub Actions)}
+The repository includes CI workflows for Python tests and container build validation:
+\begin{itemize}
+  \item \code{.github/workflows/ci.yml}: unit tests, integration tests, and a coverage gate.
+  \item \code{.github/workflows/docker.yml}: Docker image builds for API and frontend, plus \code{docker compose config} validation.
+\end{itemize}
 
 \subsection{System components table}
 \begin{table}[H]

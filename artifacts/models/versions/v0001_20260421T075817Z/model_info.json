@@ -208,10 +208,5 @@
   "run_id": "run_0001_20260421T075817Z",
   "version_number": 1,
   "version_created_utc": "2026-04-21T07:58:17.491677+00:00",
-  "versioned_model_path": "artifacts/models/versions/v0001_20260421T075817Z/final_model.joblib",
-  "tracking_files": {
-    "version_index": "artifacts/models/versions/index.json",
-    "run_history_jsonl": "artifacts/reports/model_run_history.jsonl",
-    "latest_run": "artifacts/reports/latest_model_run.json"
-  }
+  "versioned_model_path": "artifacts/models/versions/v0001_20260421T075817Z/final_model.joblib"
 }

@@ -6,22 +6,46 @@
 \usepackage{booktabs}
 \usepackage{longtable}
 \usepackage{array}
+\usepackage{tabularx}
+\usepackage{makecell}
 \usepackage{xcolor}
 \usepackage{listings}
 \usepackage{hyperref}
 \usepackage{enumitem}
 \usepackage{float}
+\usepackage{caption}
+\usepackage{microtype}
+\usepackage{fancyhdr}
+\usepackage{lastpage}
+\usepackage{xurl}
+\usepackage{tikz}
 \usepackage[strings]{underscore}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric}
+
+\definecolor{accent}{HTML}{0F4C81}
+\definecolor{softaccent}{HTML}{EAF2F8}
+\definecolor{bordergray}{HTML}{C8D3DF}
 
 \hypersetup{
   colorlinks=true,
-  linkcolor=blue,
-  urlcolor=blue,
-  citecolor=blue
+  linkcolor=accent,
+  urlcolor=accent,
+  citecolor=accent
 }
 
 \setlist[itemize]{leftmargin=1.5em}
 \newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\status}[1]{\textbf{#1}}
+\captionsetup{font=small, labelfont=bf}
+\renewcommand{\arraystretch}{1.15}
+\setlength{\emergencystretch}{2em}
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{\footnotesize Complete Fraud Detection Report}
+\rhead{\footnotesize Final\_Project\_DMM501\_Group1}
+\cfoot{\footnotesize \thepage\ of \pageref*{LastPage}}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0pt}
 
 \lstdefinestyle{codeblock}{
   basicstyle=\ttfamily\small,
@@ -33,14 +57,53 @@
 }
 \lstset{style=codeblock}
 
-\title{Complete Fraud Detection Report\\Real-Time Banking Transaction Fraud Detection and Decision Support System}
-\author{Repository: \code{Final_Project_DMM501_Group1}}
-\date{April 2026}
-
 \begin{document}
-\maketitle
+\hypersetup{pageanchor=false}
+\thispagestyle{empty}
+\begin{titlepage}
+\centering
+\vspace*{0.9cm}
+{\Large\color{accent}\bfseries DMM501 Final Project\par}
+\vspace{0.35cm}
+{\Huge\bfseries Complete Fraud Detection Report\par}
+\vspace{0.35cm}
+{\Large Real-Time Banking Transaction Fraud Detection and Decision Support System\par}
+\vspace{1.0cm}
+{\color{accent}\rule{0.88\textwidth}{1.2pt}\par}
+\vspace{0.9cm}
+\fcolorbox{bordergray}{softaccent}{
+  \begin{minipage}{0.82\textwidth}
+  \vspace{0.25cm}
+  \centering
+  \begin{tabular}{>{\bfseries}p{0.28\textwidth}p{0.5\textwidth}}
+  Main author: & AN Duong Binh \\
+  Member: & Tuyen Le Quang \\
+  Member: & NHI Nguyen Le Hong \\
+  Instructor: & Phd. NGU Huynh Cong Viet \\
+  Repository: & \code{Final_Project_DMM501_Group1} \\
+  \end{tabular}
+  \vspace{0.25cm}
+  \end{minipage}
+}
+\vspace{0.9cm}
+{\large\textbf{Submission focus}\par}
+\vspace{0.2cm}
+{\large Problem definition, architecture, implementation evidence, testing, Responsible AI, and deployment readiness\par}
+\vspace{0.9cm}
+{\color{accent}\rule{0.88\textwidth}{1.2pt}\par}
+\vfill
+{\Large April 2026\par}
+\end{titlepage}
+\pagenumbering{roman}
+\begin{abstract}
+This report documents a real-time banking transaction fraud detection and decision-support system that combines machine learning scoring, threshold-based policy handling, analyst workflow management, operational monitoring, and Docker-based deployment. The deployed artifact is a logistic regression pipeline trained on the Kaggle credit card fraud dataset, with uncalibrated risk scoring and capacity-driven top-K thresholds aligned to analyst review capacity. Suspicious transactions generate alerts and cases, which are then managed through a case lifecycle and timeline model. The repository also includes a browser-based analyst dashboard, Prometheus and Grafana observability assets, MLflow runtime tracking, SQL-backed persistence support, and CI workflows with an 80\% coverage gate. In the current verification run, the test suite completed with 50 passing tests and 80\% measured source coverage. This report aligns the final LaTeX version with repository evidence, grading-rubric expectations, deployment screenshots, benchmark artifacts, and honest limitations, so that evaluators can assess both technical implementation quality and end-to-end system maturity.
+\end{abstract}
+\clearpage
 \tableofcontents
-\newpage
+\clearpage
+\hypersetup{pageanchor=true}
+\pagenumbering{arabic}
+\pagestyle{fancy}
 
 \section{Executive Summary}
 This project implements a fraud detection system that combines machine learning inference with operational decision support for transaction handling. The implemented system accepts a transaction feature vector through a FastAPI service, computes an uncalibrated \code{risk_score}, maps that score to a \code{risk_tier} and \code{decision_recommendation}, and creates an \code{alert} and \code{case} for suspicious transactions. The broader system also includes an analyst-facing frontend, case lifecycle management, Prometheus metrics, Grafana dashboards, MLflow runtime tracking, automated tests, and Docker-based deployment components.
@@ -70,6 +133,208 @@ The implemented threshold policy in this repository reflects those constraints. 
 
 The project also acknowledges operational realities beyond scoring. A suspicious transaction must enter an \code{alert} queue, become a \code{case}, move through status transitions, and eventually reach a resolution such as \code{CONFIRMED_FRAUD} or \code{FALSE_POSITIVE}. Monitoring must then track queue size, status transitions, and false-positive outcomes.
 
+\section{Project Scope}
+The project scope is intentionally broader than a model benchmark and narrower than a production banking platform.
+
+\subsection*{Included in scope}
+\begin{itemize}
+  \item fraud risk scoring from transaction feature vectors
+  \item explicit \code{risk_tier} and \code{decision_recommendation} mapping
+  \item alert and case creation for suspicious transactions
+  \item case lifecycle management and investigation timeline exposure
+  \item frontend support for analyst workflow
+  \item operational monitoring instrumentation
+  \item local deployment assets using Docker Compose
+  \item model training, evaluation, artifact generation, and metadata export
+\end{itemize}
+
+\subsection*{Out of scope}
+\begin{itemize}
+  \item integration with live core banking transaction streams
+  \item enterprise identity management and secret vault integration
+  \item production-grade model governance, approval workflows, and retraining automation
+  \item direct use of rich real-bank telemetry such as device graphs, merchant history, account network analysis, or customer behavior baselines
+  \item full regulatory compliance packaging for a real bank deployment
+\end{itemize}
+
+\subsection*{Demo-level or prototype-grade areas}
+\begin{itemize}
+  \item in-memory persistence fallback when no SQL repository is configured
+  \item heuristic reason codes
+  \item locally configured analyst tokens and admin credentials
+  \item static-file-served frontend interaction model
+\end{itemize}
+
+\subsection*{Future work areas}
+\begin{itemize}
+  \item stronger authentication and secrets management
+  \item richer transaction features and model calibration
+  \item drift detection and closed-loop learning from case outcomes
+  \item broader deployment verification and production runbooks
+\end{itemize}
+
+\subsection*{Assumptions}
+\begin{itemize}
+  \item transaction requests provide either an ordered feature vector or a feature map aligned to the model metadata
+  \item the deployed artifact metadata remains the source of truth for thresholds and model identity
+  \item analysts interpret outputs as decision support, not as final proof of fraud
+\end{itemize}
+
+\section{Stakeholders and Actors}
+The system involves the following stakeholders and runtime actors.
+
+\begin{itemize}
+  \item Customer: the bank customer initiating a legitimate or fraudulent transaction, indirectly affected by false positives, holds, blocks, and step-up authentication.
+  \item Banking Channel: the upstream transaction source such as mobile app, internet banking, API, ATM, branch, or card-not-present channel, providing the context the system evaluates.
+  \item Fraud API: the backend application that validates requests, executes scoring, applies decision policy, creates workflow records, and exposes operational endpoints.
+  \item Fraud Scoring Engine: the model-loading and inference layer that produces \code{risk_score} through artifact loading and scoring services.
+  \item Decision Policy Engine: converts \code{risk_score} into \code{risk_tier} and \code{decision_recommendation}, making operational handling explicit rather than implicit.
+  \item Fraud Analyst: reviews \code{alert} and \code{case} records, updates case status, adds notes, and resolves investigations using the frontend and case APIs.
+  \item Monitoring / Operations: observes system health, request volume, queue size, prediction distribution, alert creation, and case outcomes through Prometheus and Grafana.
+  \item ML / Model Ops: manages training workflows, artifacts, threshold metadata, and runtime model selection, using artifact outputs and MLflow-related components.
+\end{itemize}
+
+\section{Functional Requirements}
+The following functional requirements are stated in SPS style and aligned to the current repository implementation.
+
+\begin{enumerate}[label=FR-\arabic*:, leftmargin=3.2em]
+  \item The system shall accept transaction features and return \code{risk_score}, \code{risk_tier}, \code{action}, and \code{decision_recommendation}.
+  \item The system shall document score semantics as uncalibrated risk ranking, not calibrated probability.
+  \item The system shall map scores to explicit decision tiers using threshold metadata.
+  \item The system shall apply policy-level actions: \code{LOW -> ALLOW}, \code{REVIEW -> STEP_UP_AUTH or MANUAL_REVIEW}, \code{HIGH -> HOLD or BLOCK}.
+  \item The system shall ingest the Kaggle credit card fraud dataset and validate schema before training.
+  \item The system shall split data into train, validation, and test partitions using stratification.
+  \item The system shall train baseline and improved candidate models and compare them.
+  \item The system shall tune decision thresholds using top-K review-rate policy.
+  \item The system shall generate reproducible model artifacts and model metadata.
+  \item The system shall support \code{/predict} using either \code{features} or \code{features_by_name}.
+  \item The system shall expose \code{/health} with model and threshold metadata.
+  \item The system shall expose \code{/metrics} in Prometheus format.
+  \item The system shall expose \code{/features/schema} for feature contract discovery.
+  \item The system shall expose \code{/stream/pull} for scored event simulation.
+  \item The system shall return deterministic HTTP 422 validation errors for malformed inputs.
+  \item The system shall return HTTP 503 when no model artifact is loaded.
+  \item The system shall expose alert and case workflow endpoints for investigation lifecycle handling.
+  \item The system shall enforce endpoint access with configurable authentication and role checks.
+  \item The system shall expose audit event listing for governance visibility.
+  \item The system shall enforce mutually exclusive input mode (\code{features} XOR \code{features_by_name}).
+  \item The system shall return decision explanation fields including recommendation and reason summary.
+  \item The system shall support case timeline retrieval for investigations.
+  \item The system shall expose internal labeled sample endpoints behind token validation.
+  \item The system shall emit Prometheus metrics for requests, latency, and prediction outcomes.
+  \item The system shall support Prometheus scraping and Grafana dashboard visualization.
+  \item The system shall evaluate configured Prometheus alert rules.
+  \item The system shall track queue and case workflow metrics (for example review queue size and case status).
+  \item The system shall expose runtime tracking status through health metadata.
+  \item The system shall support local deployment using Docker Compose.
+\end{enumerate}
+
+\subsection*{Prioritization summary}
+\begin{table}[H]
+\small
+\centering
+\begin{tabularx}{\textwidth}{p{0.14\textwidth}X}
+\toprule
+Priority & Requirement groups \\
+\midrule
+Must have & Accurate fraud scoring, threshold-based decision policy, \code{/predict} and \code{/health}, alert and case workflow, auditability, monitoring metrics, Docker Compose deployment, automated tests, and documented API contracts. \\
+Should have & SQL-backed persistence, analyst dashboard, stream simulation, MLflow runtime tracking, Prometheus alert rules, and role-based endpoint protection. \\
+Could have & Richer explainability, calibration, queue-aging analytics, drift monitoring, retraining orchestration, and stronger secrets management. \\
+Will not have in this project phase & Core-banking integration, enterprise IAM, fully automated model governance approval, and production regulatory packaging. \\
+\bottomrule
+\end{tabularx}
+\caption{Requirement prioritization used to keep the implementation aligned with project scope and grading expectations.}
+\end{table}
+
+\section{Non-Functional Requirements}
+The non-functional requirements are defined as follows.
+
+\subsection*{Performance}
+\begin{itemize}
+  \item single-request scoring should remain low latency for local/demo operations
+  \item monitoring instrumentation should not materially block request handling
+  \item model startup and readiness should complete within practical local runtime targets
+\end{itemize}
+
+\subsection*{Reliability}
+\begin{itemize}
+  \item invalid inputs shall produce deterministic validation errors
+  \item case state transitions shall preserve coherent workflow state
+  \item the API shall expose health information and model-loading status
+\end{itemize}
+
+\subsection*{Scalability}
+\begin{itemize}
+  \item the repository shall support an upgrade path from in-memory demo storage to SQL-backed persistence
+  \item deployment topology shall separate API, persistence, and monitoring services
+  \item services should be container-friendly and horizontally extensible
+\end{itemize}
+
+\subsection*{Observability}
+\begin{itemize}
+  \item request counts, latency, prediction tiers, case metrics, and review queue size shall be measurable
+  \item monitoring outputs shall support both technical and operational visibility
+\end{itemize}
+
+\subsection*{Maintainability}
+\begin{itemize}
+  \item the backend shall remain modular across API, services, repositories, and monitoring layers
+  \item explicit schema models shall define public API contracts
+  \item the architecture should preserve service separation for scoring, policy, and workflow modules
+\end{itemize}
+
+\subsection*{Portability}
+\begin{itemize}
+  \item local development should be supported on Windows and Linux environments
+  \item deployment should be reproducible through Docker Compose
+  \item environment-variable based configuration shall control runtime behavior
+\end{itemize}
+
+\subsection*{Security}
+\begin{itemize}
+  \item the system shall support token authentication, role-based access control, and rate limiting
+  \item internal labeled-data access shall remain protected
+  \item the current implementation is not a full enterprise security platform and requires further hardening for production use
+\end{itemize}
+
+\subsection*{Usability}
+\begin{itemize}
+  \item analyst-facing views shall expose queue context, decision support fields, and lifecycle actions with minimal navigation
+  \item analyst workflows should keep key actions (status update, resolve) low-friction
+\end{itemize}
+
+\subsection*{Testability}
+\begin{itemize}
+  \item the system shall include unit, integration, data, and model tests
+  \item frontend-to-API smoke validation shall be available through dedicated scripts
+  \item deterministic behavior should be preserved where seeded workflows are used
+\end{itemize}
+
+\section{Success Metrics and Target Values}
+To satisfy the grading rubric, success metrics are defined at business, system, and model levels. The targets below are grounded in the current repository configuration, stored artifacts, and monitoring rules rather than being generic textbook goals.
+
+\begin{table}[H]
+\small
+\centering
+\begin{tabularx}{\textwidth}{p{0.16\textwidth}p{0.26\textwidth}p{0.2\textwidth}X}
+\toprule
+Layer & Metric & Target & Current repository evidence \\
+\midrule
+Business operations & Analyst review rate & At most the top 1\% of scored traffic enters \code{REVIEW} & Implemented as \code{review\_top\_rate=0.01} in model-selection and deployment metadata. \\
+Business operations & High-risk auto-intervention rate & At most the top 0.2\% of scored traffic enters \code{HIGH} & Implemented as \code{high\_top\_rate=0.002} in the threshold policy. \\
+Business operations & False-positive surge visibility & Detect spikes before analyst workload becomes unstable & Prometheus alert fires if \code{increase(false\_positive\_total[30m]) > 25}. \\
+System reliability & API error rate & Keep 5xx below 5\% over 10 minutes & Prometheus warning rule at \code{> 0.05} of request volume. \\
+System performance & API latency & Keep p95 latency below 0.5 seconds & Prometheus warning rule at \code{histogram\_quantile(0.95, ...) > 0.5}. \\
+System operations & Review queue backlog & Keep active queue below 200 cases & Prometheus warning rule at \code{review\_queue\_size > 200}. \\
+Engineering quality & Automated test coverage & Maintain at least 80\% source coverage & Current local verification run achieved exactly 80\% with the same threshold enforced in CI. \\
+Model quality & Validation PR-AUC & Stay above 0.62 on validation for model promotion & Selected logistic regression achieved 0.6301 validation PR-AUC. \\
+Model quality & Test recall at review tier & Capture at least 85\% of fraud cases sent to analyst review & Test recall at \code{threshold\_review} is 0.8514. \\
+Model quality & Test precision at high tier & Maintain high-confidence intervention precision above 0.80 & Test precision at \code{threshold\_high} is 0.8429. \\
+\bottomrule
+\end{tabularx}
+\caption{Project success metrics with explicit targets and current evidence.}
+\end{table}
+
 \section{System Overview}
 The implemented system follows the pipeline below:
 
@@ -89,8 +354,120 @@ Transaction $\rightarrow$ Validation $\rightarrow$ Feature processing $\rightarr
   \item Resolution through final case outcomes.
 \end{enumerate}
 
+This flow is operational rather than purely predictive: the model ranks the transaction, the policy engine assigns handling, workflow services create the case object, and monitoring captures both system and operational health.
+
+\section{System Architecture}
+The architecture integrates data artifacts, an ML pipeline, a decision-support backend, an analyst frontend, monitoring assets, and a deployment stack.
+
+\subsection*{Overall architecture narrative}
+\begin{itemize}
+  \item Dataset and artifacts: training data is loaded from the credit-card fraud dataset; the pipeline exports trained models, metadata, figures, and reports under \code{artifacts/}.
+  \item ML pipeline: trains baseline and improved candidate models, selects the deployed model based on validation evidence, and exports threshold metadata and score semantics for runtime use.
+  \item Backend API: validates requests, performs scoring, applies decision logic, creates workflow objects, and exposes analyst and monitoring endpoints.
+  \item Decision layer: maps ranking outputs into operational handling tiers and recommendations.
+  \item Reason code engine: generates heuristic operational explanations and improves analyst interpretation speed without claiming causal explanation.
+  \item Alert and case services: create alerts and cases for flagged transactions and support case lifecycle transitions and timeline access.
+  \item Frontend: provides a live dashboard and review-oriented interaction surface for analysts.
+  \item Monitoring: captures technical and operational metrics and supports queue monitoring, traffic visibility, and case outcome tracking.
+  \item Deployment stack: packages API, frontend, PostgreSQL, Prometheus, Grafana, and MLflow in a local Docker Compose topology.
+\end{itemize}
+
+\subsection*{Rendered architecture diagram}
+\begin{figure}[H]
+\centering
+\resizebox{0.98\textwidth}{!}{
+\begin{tikzpicture}[
+  node distance=0.9cm and 0.9cm,
+  box/.style={draw=accent, rounded corners=3pt, fill=softaccent, minimum height=0.95cm, text width=2.65cm, align=center},
+  store/.style={draw=accent, rounded corners=3pt, fill=white, minimum height=0.9cm, text width=2.6cm, align=center},
+  line/.style={-Latex, thick, draw=accent}
+]
+\node[box] (channel) {Banking\\Channels};
+\node[box, right=of channel] (api) {FastAPI Fraud API};
+\node[box, right=of api] (scoring) {Scoring\\Service};
+\node[store, above=of scoring] (artifact) {Versioned model artifact\\and thresholds};
+\node[box, below=of scoring] (policy) {Decision policy\\and reason codes};
+\node[box, right=of scoring] (workflow) {Alert and case\\workflow service};
+\node[store, above right=of workflow] (sql) {PostgreSQL\\repository};
+\node[store, below right=of workflow] (memory) {In-memory\\repository};
+\node[box, below=of api] (frontend) {Analyst dashboard};
+\node[box, below=of policy] (prom) {Prometheus\\metrics};
+\node[box, right=of prom] (grafana) {Grafana\\dashboards};
+\node[box, above=of prom] (mlflow) {MLflow runtime\\tracker};
+
+\draw[line] (channel) -- (api);
+\draw[line] (api) -- (scoring);
+\draw[line] (artifact) -- (scoring);
+\draw[line] (scoring) -- (policy);
+\draw[line] (policy) -- (workflow);
+\draw[line] (workflow) -- (sql);
+\draw[line] (workflow) -- (memory);
+\draw[line] (api) -- (frontend);
+\draw[line] (api) -- (prom);
+\draw[line] (prom) -- (grafana);
+\draw[line] (api) -- (mlflow);
+\end{tikzpicture}
+}
+\caption{Rendered runtime architecture showing the implemented scoring, workflow, persistence, frontend, and monitoring components.}
+\end{figure}
+
+\subsection*{Transaction data flow and edge-case handling}
+\begin{figure}[H]
+\centering
+\resizebox{0.98\textwidth}{!}{
+\begin{tikzpicture}[
+  node distance=0.75cm and 0.75cm,
+  stepbox/.style={draw=accent, rounded corners=3pt, fill=softaccent, minimum height=0.85cm, text width=2.65cm, align=center},
+  exceptionbox/.style={draw=red!70!black, rounded corners=3pt, fill=red!5, minimum height=0.75cm, text width=2.8cm, align=center},
+  flow/.style={-Latex, thick, draw=accent},
+  guard/.style={-Latex, thick, draw=red!70!black}
+]
+\node[stepbox] (request) {Incoming request\\\code{POST /predict}};
+\node[stepbox, right=of request] (validate) {Schema validation,\\auth, rate limit};
+\node[stepbox, right=of validate] (features) {Feature resolution\\and numeric checks};
+\node[stepbox, right=of features] (infer) {Model inference\\\code{risk\_score}};
+\node[stepbox, right=of infer] (decision) {Threshold policy,\\reason codes, action};
+\node[stepbox, right=of decision] (case) {Alert and case creation,\\timeline, metrics};
+
+\node[exceptionbox, below=of validate] (authfail) {401/403 when token is missing\\or role is insufficient};
+\node[exceptionbox, above=of features] (badreq) {422 when \code{features} and\\\code{features\_by\_name} are invalid};
+\node[exceptionbox, below=of infer] (nomodel) {503 when no model artifact\\is available at runtime};
+\node[exceptionbox, above=of decision] (ratelimit) {429 when request rate\\exceeds configured limits};
+
+\draw[flow] (request) -- (validate);
+\draw[flow] (validate) -- (features);
+\draw[flow] (features) -- (infer);
+\draw[flow] (infer) -- (decision);
+\draw[flow] (decision) -- (case);
+\draw[guard] (validate) -- (authfail);
+\draw[guard] (features) -- (badreq);
+\draw[guard] (infer) -- (nomodel);
+\draw[guard] (decision) -- (ratelimit);
+\end{tikzpicture}
+}
+\caption{Transaction-serving data flow with explicit handling for malformed input, unauthorized access, missing models, and rate limiting.}
+\end{figure}
+
+\subsection*{Technology decisions and trade-offs}
+\begin{table}[H]
+\small
+\centering
+\begin{tabularx}{\textwidth}{p{0.17\textwidth}p{0.24\textwidth}X}
+\toprule
+Decision & Why it was chosen & Trade-off and implication \\
+\midrule
+Logistic regression as deployed model & Achieved the best validation PR-AUC (0.6301) and higher review-tier recall than the LightGBM candidate under the same capacity-driven policy. & Less expressive than boosted trees, but simpler to inspect, easier to version, and strong enough on this benchmark. \\
+Top-K threshold policy & Review and high-risk tiers must match analyst capacity, not an arbitrary fixed probability cutoff. & Thresholds are operationally meaningful, but the score must be treated as ranking rather than calibrated probability. \\
+FastAPI for serving & Provides typed request/response schemas, automatic OpenAPI docs, and clean endpoint organization for grading and demo use. & Slightly more framework structure than a minimal Flask service, but much better documentation and validation support. \\
+Repository abstraction with memory and SQL modes & Supports a lightweight demo path while preserving an upgrade path to durable PostgreSQL storage. & Dual persistence modes increase implementation complexity, but make the repo more realistic and easier to demo locally. \\
+Prometheus + Grafana + MLflow stack & Gives both software-operational visibility and ML/runtime tracking using open-source tooling already common in MLOps practice. & More services to run during local demos, but much stronger observability evidence for the final project. \\
+\bottomrule
+\end{tabularx}
+\caption{Key technical decisions with the business or engineering trade-off behind each choice.}
+\end{table}
+
 \section{Dataset Description}
-The repository uses the Kaggle credit card fraud dataset stored locally as \code{data/archive/creditcard.csv} and \code{data/raw/creditcard.csv}. According to the generated repository artifacts, the dataset contains 284{,}807 rows and 31 columns, consisting of \code{Time}, anonymized variables \code{V1} through \code{V28}, \code{Amount}, and the target variable \code{Class}.
+The repository uses the Kaggle credit card fraud dataset stored locally at \path{data/archive/creditcard.csv} and \path{data/raw/creditcard.csv}. According to the generated repository artifacts, the dataset contains 284{,}807 rows and 31 columns, consisting of \code{Time}, anonymized variables \code{V1} through \code{V28}, \code{Amount}, and the target variable \code{Class}.
 
 Fraud is extremely rare in the data. The generated class distribution report shows 492 fraud records and 284{,}315 non-fraud records, giving a fraud ratio of 0.001727485630620034, or approximately 0.17\%.
 
@@ -115,6 +492,20 @@ The feature set has important limitations for banking interpretation. Most predi
 \caption{Transaction time distribution.}
 \end{figure}
 
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.49\textwidth]{fraud_vs_nonfraud_amount.png}
+\includegraphics[width=0.49\textwidth]{fraud_vs_nonfraud_time.png}
+\caption{Fraud vs non-fraud comparison for amount (left) and time (right).}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.49\textwidth]{correlation_overview.png}
+\includegraphics[width=0.49\textwidth]{correlation_full.png}
+\caption{Correlation overview (left) and full matrix view (right).}
+\end{figure}
+
 \section{Data Challenges}
 The first data challenge is extreme class imbalance. Because fraud is rare, a classifier can produce deceptively strong aggregate metrics while still missing many fraudulent transactions or generating too many false alerts. This is why the repository emphasizes PR-AUC, threshold tuning, and operating-point metrics instead of generic accuracy.
 
@@ -125,24 +516,79 @@ The third challenge is simulation realism. Although the project is framed as a b
 \section{Machine Learning Pipeline}
 The repository contains an explicit training and model-selection workflow in \code{src/pipelines/run_model_workflow.py} and \code{src/pipelines/train_pipeline.py}. The workflow reads the credit card dataset, performs exploratory checks and schema validation, splits data into train, validation, and test subsets, and benchmarks multiple models.
 
-The implemented workflow includes preprocessing, model training, evaluation, threshold tuning, and artifact saving. The saved deployment artifact identifies the selected model as a logistic regression pipeline. The threshold policy is explicitly documented in \code{artifacts/models/model_info.json} as a capacity-driven top-K approach with \code{review_top_rate=0.01} and \code{high_top_rate=0.002}.
+The implemented workflow includes preprocessing, model training, evaluation, threshold tuning, and artifact saving. The saved deployment artifact identifies the selected model as a logistic regression pipeline, versioned in the metadata as \code{v0002\_20260424T083412Z}. The threshold policy is explicitly documented in \code{artifacts/models/model_info.json} as a capacity-driven top-K approach with \code{review_top_rate=0.01} and \code{high_top_rate=0.002}.
+
+\subsection{Experiment tracking and model versioning}
+Experiment tracking is implemented at two levels. First, the offline workflow produces benchmark tables, plots, model-selection summaries, and versioned artifacts under \code{artifacts/}. Second, the deployed API can emit runtime telemetry into MLflow for traffic and decision monitoring. This gives the project a traceable path from training evidence to serving-time observability.
+
+\begin{table}[H]
+\small
+\centering
+\begin{tabularx}{\textwidth}{p{0.24\textwidth}X}
+\toprule
+Tracking element & Repository evidence and interpretation \\
+\midrule
+Model selection basis & \code{artifacts/reports/model\_selection\_summary.json} records that promotion is based on validation PR-AUC, with review-tier recall used as the tie-breaker under the top-K review policy. \\
+Selected artifact & \code{artifacts/models/final\_model.joblib} and versioned copy \code{artifacts/models/versions/v0002\_20260424T083412Z/final\_model.joblib}. \\
+Model identity & \code{run\_id=run\_0002\_20260424T083412Z}, \code{model\_version=v0002\_20260424T083412Z}, and tracking files for latest run and run history. \\
+Threshold metadata & \code{artifacts/models/model\_info.json} stores \code{threshold\_review}, \code{threshold\_high}, score percentiles, and test metrics used by the serving layer. \\
+Hyperparameter evidence & \code{artifacts/benchmarks/improved\_hyperparameter\_tuning.csv} and the saved LightGBM best parameters document the challenger search space. \\
+Runtime observability & Deployment config enables MLflow runtime tracking with experiment \code{fraud-runtime-traffic} and run name \code{api-online-traffic}. \\
+\bottomrule
+\end{tabularx}
+\caption{Experiment tracking and model-governance evidence present in the repository.}
+\end{table}
+
+\subsection{Baseline and candidate evidence}
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.49\textwidth]{baseline_pr_curve.png}
+\includegraphics[width=0.49\textwidth]{baseline_roc_curve.png}
+\caption{Baseline logistic regression PR curve (left) and ROC curve (right).}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.49\textwidth]{baseline_confusion_matrix.png}
+\includegraphics[width=0.49\textwidth]{baseline_threshold_sweep.png}
+\caption{Baseline confusion matrix (left) and threshold sweep (right).}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.49\textwidth]{improved_pr_curve.png}
+\includegraphics[width=0.49\textwidth]{improved_roc_curve.png}
+\caption{Improved LightGBM candidate PR curve (left) and ROC curve (right).}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.49\textwidth]{improved_confusion_matrix.png}
+\includegraphics[width=0.49\textwidth]{improved_threshold_sweep.png}
+\caption{Improved candidate confusion matrix (left) and threshold sweep (right).}
+\end{figure}
 
 \section{Model Evaluation}
 For fraud detection, PR-AUC is more informative than ROC-AUC because the positive class is extremely rare. ROC-AUC can remain high even when a model produces many false positives at the operating point that matters to analysts. PR-AUC focuses more directly on the precision-recall trade-off under class imbalance.
 
 \subsection{Model comparison}
 \begin{table}[H]
+\scriptsize
 \centering
-\begin{tabular}{lrrrrrrl}
+\begin{tabular}{lrrrrrr}
 \toprule
-Model & Threshold & Precision & Recall & F1 & ROC-AUC & PR-AUC & Status \\
+Model & Threshold & Precision & Recall & F1 & ROC-AUC & PR-AUC \\
 \midrule
-Logistic Regression (Review) & 0.7391 & 0.1470 & 0.8510 & 0.2510 & 0.9684 & 0.6300 & Selected in deployed artifacts \\
-LightGBM (Review) & 0.0000004 & 0.1330 & 0.7700 & 0.2270 & 0.9288 & 0.6290 & Benchmarked candidate \\
+Logistic Regression (Review) & 0.7391 & 0.1470 & 0.8510 & 0.2510 & 0.9684 & 0.6300 \\
+LightGBM (Review) & 0.0000004 & 0.1330 & 0.7700 & 0.2270 & 0.9288 & 0.6290 \\
 \bottomrule
 \end{tabular}
 \caption{Validation operating-point comparison from repository benchmark artifacts.}
 \end{table}
+
+The logistic regression row is the currently deployed artifact; the LightGBM row remains the strongest challenger retained for benchmark comparison.
+
+The selection rationale is important for defendability. Logistic regression was promoted because it slightly outperformed the LightGBM candidate on validation PR-AUC (0.6301 vs 0.6289) and achieved materially stronger review-tier recall (0.8514 vs 0.7703) at the review operating point. That decision is aligned with the project goal of maximizing suspicious-transaction capture under a fixed analyst-capacity budget, even if the more complex model could still be useful as a future challenger.
 
 The repository also stores the final deployed evaluation metrics at the operating thresholds used for decision support. At the review threshold, precision is 0.1462 and recall is 0.8514. At the high threshold, precision is 0.8429 and recall is 0.7973. These figures show the trade-off between broader queue capture at the review threshold and tighter containment at the high threshold.
 
@@ -189,7 +635,7 @@ The API exposes \code{risk_score} in the range \([0,1]\), but this score is expl
 
 The deployed thresholds are:
 \begin{itemize}
-  \item review threshold: \code{0.7391262534904803}
+  \item review threshold: \code{0.7391262534904675}
   \item high-risk threshold: \code{0.9999047447184487}
 \end{itemize}
 
@@ -276,17 +722,25 @@ request -> validate schema + auth + rate limit
        -> return PredictResponse(...)
 \end{lstlisting}
 
-Key implementation references: request handling in \code{src/api/main.py}, scoring in \code{src/services/scoring_service.py}, decision logic in \code{src/services/decision_service.py}, workflow orchestration in \code{src/services/case_service.py}, and persistence in \code{src/repositories/}.
+Key implementation references:
+\begin{itemize}
+  \item request handling: \code{src/api/main.py}
+  \item scoring: \code{src/services/scoring_service.py}
+  \item decision logic: \code{src/services/decision_service.py}
+  \item workflow orchestration: \code{src/services/case_service.py}
+  \item persistence: \code{src/repositories/}
+\end{itemize}
 
 \subsection{API contract evidence}
-\begin{figure}[H]
+\begin{figure}[htbp]
 \centering
-\includegraphics[width=0.95\textwidth]{swagger-docs.png}
+\includegraphics[width=0.92\textwidth,height=0.72\textheight,keepaspectratio]{swagger-docs.png}
 \caption{Swagger/OpenAPI documentation for the FastAPI backend (local deployment evidence screenshot).}
 \end{figure}
 
 \subsection{API endpoint table}
-\begin{longtable}{p{0.22\linewidth}p{0.1\linewidth}p{0.42\linewidth}p{0.16\linewidth}}
+\small
+\begin{longtable}{p{0.24\linewidth}p{0.08\linewidth}p{0.41\linewidth}p{0.17\linewidth}}
 \toprule
 Endpoint & Method & Purpose & Status \\
 \midrule
@@ -298,13 +752,13 @@ Endpoint & Method & Purpose & Status \\
 \code{/predict} & POST & Score transaction and optionally create \code{alert} and \code{case} & Implemented \\
 \code{/stream/pull} & GET & Pull pre-scored demo events & Implemented \\
 \code{/alerts} & GET & List fraud alerts & Implemented \\
-\code{/alerts/\{alert_id\}} & GET & Retrieve alert detail & Implemented \\
-\code{/alerts/\{alert_id\}/status} & POST & Update linked case status via alert & Implemented \\
+\code{/alerts/<alert_id>} & GET & Retrieve alert detail & Implemented \\
+\code{/alerts/<alert_id>/status} & POST & Update linked case status via alert & Implemented \\
 \code{/cases} & GET & List cases & Implemented \\
-\code{/cases/\{case_id\}} & GET & Retrieve case detail & Implemented \\
-\code{/cases/\{case_id\}/status} & POST & Update case lifecycle status & Implemented \\
-\code{/cases/\{case_id\}/resolve} & POST & Resolve case outcome & Implemented \\
-\code{/cases/\{case_id\}/timeline} & GET & Retrieve investigation timeline & Implemented \\
+\code{/cases/<case_id>} & GET & Retrieve case detail & Implemented \\
+\code{/cases/<case_id>/status} & POST & Update case lifecycle status & Implemented \\
+\code{/cases/<case_id>/resolve} & POST & Resolve case outcome & Implemented \\
+\code{/cases/<case_id>/timeline} & GET & Retrieve investigation timeline & Implemented \\
 \code{/audit/events} & GET & Retrieve audit events & Implemented, ancillary \\
 \code{/dataset/samples} & GET & Fetch unlabeled sample rows & Implemented \\
 \code{/internal/dataset/samples} & GET & Fetch labeled sample rows with token protection & Implemented, internal \\
@@ -327,6 +781,19 @@ The frontend also displays a clear score semantics cue stating that the score is
 \caption{Analyst dashboard view (local deployment evidence screenshot).}
 \end{figure}
 
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.49\textwidth]{frontend_dashboard_live.png}
+\includegraphics[width=0.49\textwidth]{frontend_dashboard_stream.png}
+\caption{Frontend live-mode dashboard (left) and streaming view (right).}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{frontend_dashboard_streaming.png}
+\caption{Frontend streaming interaction view.}
+\end{figure}
+
 \section{Monitoring and Observability}
 The backend exposes Prometheus metrics and includes Grafana dashboard configuration plus MLflow runtime tracking. Monitoring is critical in fraud systems because operational failure can arise from more than model degradation. High latency, queue buildup, false-positive spikes, or unusually low scoring traffic can each undermine fraud operations even when the model artifact itself is unchanged.
 
@@ -335,6 +802,25 @@ The implemented Prometheus metrics include API request volume and status counts,
 The implemented Prometheus alert rules include high 5xx error rate, high p95 API latency, unusually low prediction traffic, unusually high prediction traffic, review queue backlog, and false-positive spike.
 
 MLflow runtime tracking is also implemented. The tracker records runtime traffic metrics such as total requests, predict calls, stream pulls, scored events, average \code{risk_score}, tier totals, HTTP status families, and decision totals.
+
+\subsection*{Alerting thresholds and operational meaning}
+\begin{table}[H]
+\small
+\centering
+\begin{tabularx}{\textwidth}{p{0.28\textwidth}p{0.2\textwidth}X}
+\toprule
+Alert rule & Threshold & Operational meaning \\
+\midrule
+\code{FraudApiHigh5xxErrorRate} & \(> 5\%\) of requests over 10 minutes & Detects unstable API behavior before prediction service quality collapses. \\
+\code{FraudApiHighP95Latency} & p95 \(> 0.5\) seconds for 10 minutes & Protects real-time decision support from degraded response times. \\
+\code{FraudApiPredictionRateTooLow} & \(< 0.01\) predictions/sec for 15 minutes & Surfaces stalled traffic, broken upstream feeds, or idle demo environments. \\
+\code{FraudApiPredictionRateTooHigh} & \(> 50\) predictions/sec for 10 minutes & Surfaces abnormal traffic spikes or abuse scenarios. \\
+\code{FraudReviewQueueBacklogHigh} & \code{review\_queue\_size > 200} for 15 minutes & Signals that analyst capacity is being exceeded. \\
+\code{FraudFalsePositiveSpike} & More than 25 false positives in 30 minutes & Highlights model/policy drift or poor analyst experience. \\
+\bottomrule
+\end{tabularx}
+\caption{Configured Prometheus alert rules and the operational risk each rule addresses.}
+\end{table}
 
 \subsection{Monitoring figures}
 \begin{figure}[H]
@@ -367,6 +853,13 @@ The API container loads the saved fraud model and mounts the artifacts volume. T
 \caption{Docker Compose topology screenshot (deployment evidence).}
 \end{figure}
 
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.49\textwidth]{docker-terminal.png}
+\includegraphics[width=0.49\textwidth]{gafrana-fraud-detection-api-monitoring-2026-04-15-11_54_29.png}
+\caption{Local container startup evidence (left) and monitoring dashboard evidence (right).}
+\end{figure}
+
 \subsection{Local deployment steps}
 The recommended demo deployment path is Docker Compose:
 
@@ -389,6 +882,26 @@ Key service URLs (default ports):
 \includegraphics[width=0.95\textwidth]{docker-terminal.png}
 \caption{Local \code{docker compose} up and running services (deployment evidence).}
 \end{figure}
+
+\subsection{Containerization and orchestration review}
+The deployment implementation is stronger than a single-container demo because it separates runtime concerns into purpose-specific services and wires them together with Compose health checks and dependency conditions. PostgreSQL exposes a readiness probe using \code{pg\_isready}; the API and frontend each have HTTP health checks; and the API waits for PostgreSQL to become healthy before startup. This design supports a much more realistic local demo than a notebook-plus-server setup.
+
+\begin{table}[H]
+\small
+\centering
+\begin{tabularx}{\textwidth}{p{0.22\textwidth}X}
+\toprule
+Deployment quality area & Current repository status \\
+\midrule
+Service decomposition & Implemented for API, frontend, PostgreSQL, Prometheus, Grafana, and MLflow in one Compose topology. \\
+Health checks & Implemented for PostgreSQL, API, and frontend, improving demo stability and restart behavior. \\
+Environment-driven configuration & Implemented for model path, repository mode, auth, rate limits, and runtime tracking. \\
+Image strategy & Functional slim Python images are used for API and frontend serving. They are reproducible, but future hardening can still add non-root execution and multi-stage optimization. \\
+Operational realism & Strong for a course project because monitoring, persistence, dashboards, and experiment tracking run together instead of being described only on paper. \\
+\bottomrule
+\end{tabularx}
+\caption{Assessment of containerization and orchestration quality in the current repository.}
+\end{table}
 
 \subsection{Deployment configuration (selected environment variables)}
 The deployment uses environment variables to control model selection, persistence mode, authentication, and monitoring integration. The most important variables are:
@@ -421,6 +934,21 @@ The repository includes CI workflows for Python tests and container build valida
   \item \code{.github/workflows/docker.yml}: Docker image builds for API and frontend, plus \code{docker compose config} validation.
 \end{itemize}
 
+\begin{table}[H]
+\small
+\centering
+\begin{tabularx}{\textwidth}{p{0.22\textwidth}p{0.18\textwidth}X}
+\toprule
+Workflow job & Trigger and platform & What it validates \\
+\midrule
+\code{unit-tests} & Push or pull request on \code{ubuntu-latest} & Runs \code{pytest -q tests/unit tests/data} to catch fast failures in preprocessing, IDs, data sampling, and core utilities. \\
+\code{integration-and-coverage} & Push or pull request on \code{ubuntu-latest} & Runs API integration tests and then enforces \code{--cov-fail-under=80} across the codebase. \\
+\code{build-and-validate} & Push or pull request on \code{ubuntu-latest} & Builds API and frontend images and validates Compose configuration syntax for deployment readiness. \\
+\bottomrule
+\end{tabularx}
+\caption{CI/CD workflow coverage in the repository's GitHub Actions configuration.}
+\end{table}
+
 \subsection{System components table}
 \begin{table}[H]
 \centering
@@ -443,20 +971,198 @@ MLflow tracking & Experiment and runtime tracking & \code{deployment/mlflow/}, \
 \caption{System components and implementation status.}
 \end{table}
 
-\section{Testing and Validation}
-The repository contains unit, data, integration, security, frontend/API, SQL persistence, and model validation tests. The test inventory includes coverage for preprocessing behavior, request ID generation, dataset path handling and sampling logic, model training artifact creation, model probability range validation, key API endpoints, \code{alert} and \code{case} lifecycle flow, token-based authorization, audit events, rate limiting, SQL repository persistence across app restarts, and frontend-to-API interaction.
+\section{Repository and Component Mapping}
+The repository is organized around a source-code core, a static frontend, generated artifacts, deployment assets, tests, and documentation. The tables below summarize the most important areas and the runtime components they support.
 
-The repository contains unit, integration, data, model, and frontend/API tests under \code{tests/}. In the present workspace, integration-style checks pass for multiple API and workflow scenarios, but full-suite runs can encounter Windows temp-directory permission issues affecting tests that use \code{tmp_path}. This is an environment constraint rather than evidence that the implemented API workflow is absent.
+\subsection{Repository map}
+\begin{table}[H]
+\centering
+\begin{tabular}{p{0.15\linewidth}p{0.13\linewidth}p{0.28\linewidth}p{0.32\linewidth}}
+\toprule
+Folder / Area & Layer & Responsibility & Key Files / Notes \\
+\midrule
+\code{src/} & Core application & Backend logic for scoring, decisions, workflow, monitoring, and security & \code{src/api/main.py}, \code{src/services/decision_service.py}, \code{src/repositories/factory.py} \\
+\code{frontend/} & Presentation & Analyst dashboard, API client, and review workflow UI & \code{frontend/index.html}, \code{frontend/app.js}, \code{frontend/api-client.js} \\
+\code{artifacts/} & ML and evidence & Models, figures, benchmark tables, reports, deployment evidence, and MLflow data & \code{artifacts/models/}, \code{artifacts/reports/} \\
+\code{deployment/} & Deployment and observability & Dockerfiles, Compose stack, Prometheus, Grafana, and MLflow assets & \code{deployment/docker-compose.yml}, \code{deployment/prometheus/}, \code{deployment/grafana/} \\
+\code{tests/} & Validation & Unit, data, integration, and smoke validation & \code{tests/integration/}, \code{tests/unit/}, \code{tests/verify_system.py} \\
+\code{.github/workflows/} & CI/CD support & Repository automation definitions & \code{.github/workflows/ci.yml}, \code{.github/workflows/docker.yml} \\
+\code{docs/} & Documentation area & Legacy project documentation location & Legacy content retained for reference; the consolidated narrative lives in this report \\
+\bottomrule
+\end{tabular}
+\caption{Repository-to-responsibility mapping.}
+\end{table}
+
+\subsection{System component map}
+\begin{table}[H]
+\centering
+\begin{tabular}{p{0.18\linewidth}p{0.15\linewidth}p{0.28\linewidth}p{0.28\linewidth}}
+\toprule
+Component & Type & Responsibility & Status / note \\
+\midrule
+Scoring service & Backend service & Produces \code{risk\_score} from transaction features & Fully implemented \\
+Decision policy engine & Backend service & Maps \code{risk\_score} to \code{risk\_tier} and \code{decision\_recommendation} & Fully implemented \\
+Reason code engine & Backend service & Generates heuristic explanation signals & Partially implemented \\
+Case service & Workflow service & Creates and updates \code{case} records and lifecycle state & Fully implemented \\
+Timeline service & Workflow feature & Exposes investigation event history & Fully implemented \\
+Frontend dashboard & UI & Displays stream, cases, and review actions & Fully implemented \\
+Monitoring stack & Operations & Exposes metrics and dashboards & Fully implemented \\
+SQL persistence path & Infrastructure & Supports durable case storage & Fully implemented \\
+In-memory fallback & Demo infrastructure & Supports local/demo case storage & Demo-level \\
+\bottomrule
+\end{tabular}
+\caption{Component-level mapping for the runtime system.}
+\end{table}
+
+\section{Testing and Validation}
+The repository contains unit, data, model, integration, security, frontend/API, and SQL-persistence tests. The inventory covers preprocessing behavior, request ID generation, dataset path handling and sampling logic, model training artifact creation, probability range validation, key API endpoints, alert and case lifecycle flow, token-based authorization, audit events, rate limiting, SQL repository persistence across app restarts, and frontend-to-API interaction.
+
+\subsection*{Current verification result}
+In the current workspace, the full test command below was executed successfully:
+
+\begin{lstlisting}[language=bash]
+./.venv/bin/pytest -q --cov=src --cov-config=.coveragerc --cov-report=term-missing
+\end{lstlisting}
+
+That verification run produced \status{50 passed tests} and \status{80\% total source coverage}. This matters because the repository CI pipeline uses the same coverage threshold as its merge gate.
+
+\begin{table}[H]
+\small
+\centering
+\begin{tabularx}{\textwidth}{p{0.2\textwidth}p{0.18\textwidth}X}
+\toprule
+Test category & Representative files & What it validates \\
+\midrule
+Unit tests & \code{tests/unit/test\_loader\_and\_scoring.py}, \code{test\_reason\_code\_service.py} & Core scoring behavior, reason-code logic, preprocessing, and ID generation. \\
+Data tests & \code{tests/data/test\_samples.py} & Dataset path handling, sample retrieval, and data utility behavior. \\
+Model tests & \code{tests/model/test\_model\_validation\_placeholder.py} & Training artifact creation, metric sanity, and model probability range checks. \\
+Integration tests & \code{tests/integration/test\_api\_predict\_happy\_path.py}, \code{test\_api\_alert\_case\_workflow.py}, \code{test\_api\_sql\_persistence.py} & End-to-end API behavior, security checks, workflow state transitions, and SQL persistence. \\
+Frontend/API smoke tests & \code{tests/test\_frontend\_api.py} & Browser-facing integration assumptions between dashboard behavior and backend endpoints. \\
+\bottomrule
+\end{tabularx}
+\caption{Test strategy by test type and repository coverage area.}
+\end{table}
+
+\subsection*{Coverage highlights and residual gaps}
+\begin{table}[H]
+\small
+\centering
+\begin{tabularx}{\textwidth}{p{0.24\textwidth}p{0.14\textwidth}X}
+\toprule
+Area & Coverage & Interpretation \\
+\midrule
+\code{src/api/schemas.py} & 100\% & Public request/response contracts are fully exercised, which is important for API reliability. \\
+\code{src/services/reason\_code\_service.py} & 98\% & Decision-support explanation logic is well covered. \\
+\code{src/monitoring/metrics.py} & 98\% & Metric emission paths are directly tested, supporting observability claims. \\
+\code{src/models/loader.py} & 95\% & Artifact loading and metadata handling are strongly validated. \\
+\code{src/sql\_case\_repository.py} & 57\% & Durable persistence exists and is integration-tested, but branch coverage for all SQL paths can still be expanded. \\
+\code{src/monitoring/mlflow\_runtime\_tracker.py} & 38\% & Runtime tracking exists and is wired, but deserves deeper direct unit coverage in a future hardening pass. \\
+\bottomrule
+\end{tabularx}
+\caption{Selected coverage observations from the latest test run.}
+\end{table}
+
+The latest run also surfaced a small number of non-fatal warnings: sklearn feature-name warnings during some model tests and resource warnings around SQLite connections. These warnings do not invalidate the passing result, but they identify good cleanup opportunities before final submission.
 
 \section{Responsible AI}
-The repository is explicit that the system is a decision-support system and not a fully autonomous fraud adjudication engine. This is the correct framing for banking use.
+The repository is explicit that the system is a decision-support system and not a fully autonomous fraud adjudication engine. This framing is important because banking fraud operations are high stakes: incorrect blocking can harm legitimate customers, while missed fraud can produce direct financial loss and regulatory exposure. The project therefore treats the model as a ranking component inside a broader human-supervised workflow.
 
-Three Responsible AI points are especially important: fairness limitations because the dataset does not contain explicit protected attributes; explainability limitations because the core features are PCA-transformed and the reason codes are heuristic rather than causal; and human-in-the-loop design because final outcomes such as \code{CONFIRMED_FRAUD} and \code{FALSE_POSITIVE} are produced through \code{case} resolution, not directly by the model score.
+\subsection*{Fairness and representational limits}
+The available dataset does not include explicit protected attributes such as gender, age band, ethnicity, or disability status. That means the project cannot claim measured demographic fairness, and it would be technically weak to pretend otherwise. The more defensible position is that fairness risk is acknowledged, its absence from the dataset is documented, and the system is designed so that analysts can override model outputs through case review rather than automatically finalizing outcomes.
+
+\subsection*{Explainability methods}
+Explainability is implemented at two levels:
+\begin{itemize}
+  \item model-level interpretation through SHAP summary artifacts and feature-importance exports
+  \item operational explanation through heuristic reason codes, score tiering, and explicit decision recommendations returned by the API
+\end{itemize}
+
+This is useful but intentionally limited. SHAP helps analysts and reviewers see which transformed features contribute most strongly to model behavior, while reason codes help operational triage. Neither should be described as causal proof because the underlying PCA-style features are anonymized and not business-native.
+
+\subsection*{Ethical controls and human oversight}
+\begin{table}[H]
+\small
+\centering
+\begin{tabularx}{\textwidth}{p{0.26\textwidth}p{0.24\textwidth}X}
+\toprule
+Risk area & Current mitigation & Residual limitation \\
+\midrule
+False positives harming legitimate customers & Review and high-risk tiers are separated; analysts can resolve cases as \code{FALSE\_POSITIVE} or \code{RELEASED}. & Manual review still consumes analyst time and can still create customer friction. \\
+Over-trust in raw model score & Report and frontend explicitly state that \code{risk\_score} is uncalibrated and should be treated as ranking, not probability. & Users may still misinterpret a value near 1.0 without additional calibration or percentile display. \\
+Opaque model behavior & SHAP summary, feature importance, and reason-code outputs provide partial interpretability. & PCA-based features remain difficult to explain in business language. \\
+Unreviewed automated decisions & Final case outcomes are produced through case workflow, not by the model alone. & High-risk responses such as \code{HOLD} or \code{BLOCK} are still policy-driven and would need governance review in production. \\
+\bottomrule
+\end{tabularx}
+\caption{Responsible AI controls, mitigations, and known residual limitations.}
+\end{table}
 
 \section{Results and Discussion}
 The project demonstrates that a relatively simple model can perform well on the benchmark dataset when paired with explicit threshold policy and workflow design. The saved artifacts show strong ROC-AUC and meaningful PR-AUC, while the review and high-risk thresholds provide different operating points for queueing and containment.
 
-The system's main strength is integration. It aligns model output, backend orchestration, frontend handling, and monitoring into a coherent fraud decision-support process. The inclusion of \code{alert} generation, \code{case} creation, status transitions, timeline events, Prometheus metrics, and Docker deployment makes the repository materially stronger than a standalone notebook or scoring endpoint.
+The system's main strength is integration. It aligns model output, backend orchestration, frontend handling, and monitoring into a coherent fraud decision-support process. The inclusion of \code{alert} generation, \code{case} creation, status transitions, timeline events, Prometheus metrics, and Docker deployment makes the repository materially stronger than a standalone notebook or scoring endpoint. The saved artifacts also confirm that logistic regression is the selected deployed artifact in the current workflow, not the LightGBM candidate, because it achieved slightly better validation PR-AUC.
+
+\section{Documentation and Submission Readiness}
+The repository already contains the files required by the submission checklist: \code{README.md}, \code{ARCHITECTURE.md}, \code{CONTRIBUTING.md}, \code{requirements.txt}, container definitions under \code{deployment/}, and CI workflows under \code{.github/workflows/}. FastAPI also exposes live OpenAPI documentation at \code{/docs}, which strengthens the API documentation criterion beyond a static endpoint list.
+
+\begin{table}[H]
+\small
+\centering
+\begin{tabularx}{\textwidth}{p{0.24\textwidth}p{0.16\textwidth}X}
+\toprule
+Submission requirement & Status & Evidence or note \\
+\midrule
+\code{README.md} & Present & Includes project overview, setup path, runtime flow, screenshots, and validation snapshot. \\
+\code{ARCHITECTURE.md} & Present & Documents actors, runtime flow, lifecycle, monitoring, and deployment topology. \\
+\code{CONTRIBUTING.md} & Present & Branching, testing, and CI expectations are documented; team-specific evidence links should be finalized before submission. \\
+\code{requirements.txt} & Present & Python dependencies for training, serving, tests, and monitoring are tracked in one file. \\
+Dockerfile and Compose & Present & API, frontend, MLflow, and Compose topology are implemented under \code{deployment/}. \\
+\code{.github/workflows/} & Present & \code{ci.yml} and \code{docker.yml} provide automated validation on push and pull request. \\
+API documentation & Present & FastAPI Swagger/OpenAPI docs are available and already evidenced in this report. \\
+\bottomrule
+\end{tabularx}
+\caption{Submission-readiness checklist aligned to the project brief.}
+\end{table}
+
+\section{Individual Contribution Evidence}
+The project brief allows individual grades to move based on commit history, role clarity, and live Q\&A. The current repository history already provides usable contribution evidence, but it should be presented carefully and honestly.
+
+\begin{table}[H]
+\small
+\centering
+\begin{tabularx}{\textwidth}{p{0.2\textwidth}p{0.12\textwidth}X}
+\toprule
+Visible git author identity & Commits in current history & Representative work visible in commit subjects \\
+\midrule
+\code{Duong Binh An} & 23 & Integration test fixtures, dataset path handling, model loading tests, MLflow runtime tracking, frontend/API verification, Docker/frontend updates, model workflow, refactors, and final report integration. \\
+\code{Annwyn} & 20 & Documentation expansion, benchmark summaries, system specification, CI coverage updates, deployment scripts, monitoring exporter, Grafana/dashboard work, artifact refreshes, and frontend/API system verification. \\
+\bottomrule
+\end{tabularx}
+\caption{Contribution evidence visible directly from the current git history.}
+\end{table}
+
+For course submission, the team should ensure that official member names and GitHub identities are mapped clearly. The title page lists the official roster as AN Duong Binh, Tuyen Le Quang, and NHI Nguyen Le Hong, while the git history currently exposes the author identities \code{Duong Binh An} and \code{Annwyn}. If those names correspond to different course members or aliases, the final submission packet should attach PR links or a short identity-mapping note so grading remains fair and defensible.
+
+\section{Rubric Alignment Matrix}
+The table below makes the grading argument explicit. It does not claim perfection; rather, it maps each rubric area to concrete repository evidence that evaluators can verify quickly.
+
+\begin{table}[H]
+\small
+\centering
+\begin{tabularx}{\textwidth}{p{0.23\textwidth}p{0.47\textwidth}X}
+\toprule
+Rubric area & Repository evidence & Why this is defendable in presentation \\
+\midrule
+Problem definition and requirements & Problem framing, business context, prioritized functional and non-functional requirements, and explicit success metrics are documented in the first third of this report. & Demonstrates that the project is solving an operational fraud decision problem, not only a binary-classification exercise. \\
+System design and architecture & Rendered architecture diagrams, transaction data flow with edge cases, and a trade-off table are included in the architecture section. & Gives evaluators both the big-picture topology and the reasoning behind the chosen design. \\
+Implementation: ML pipeline & Multiple candidate models, selection artifacts, threshold tuning, versioned model metadata, and tracking files are stored under \code{artifacts/}. & Shows real experiment evidence, not just final screenshots. \\
+Implementation: deployment and monitoring & Docker Compose topology, health checks, Prometheus metrics, alert rules, Grafana dashboards, and MLflow runtime tracking are all implemented. & Strong end-to-end MLOps evidence for a course project. \\
+Testing and CI/CD & 50 passing tests, 80\% coverage, CI workflows, and Docker validation workflow are documented with current evidence. & Lets the team defend engineering quality with concrete numbers instead of vague claims. \\
+Responsible AI & SHAP artifacts, uncalibrated-score disclosure, human review workflow, and ethical limitations are explicitly documented. & Honest discussion is stronger than overstating fairness or explainability that the dataset cannot support. \\
+Documentation & README, ARCHITECTURE, CONTRIBUTING, OpenAPI docs, and this consolidated report are present. & Reviewers can navigate the repo quickly and map claims back to code and artifacts. \\
+\bottomrule
+\end{tabularx}
+\caption{Grading-rubric alignment matrix for evaluators and presentation preparation.}
+\end{table}
 
 \section{Limitations}
 \begin{itemize}
@@ -466,6 +1172,9 @@ The system's main strength is integration. It aligns model output, backend orche
   \item Security maturity gap: token-based role checks, rate limiting, and audit events exist, but enterprise-grade IAM and hardened RBAC governance are not fully implemented.
   \item No drift detection: the repository does not implement live data drift, concept drift, or automated retraining triggers.
   \item No closed feedback loop: resolved fraud outcomes are not yet wired into a model retraining pipeline.
+  \item Runtime verification gap: not all live-stack deployment paths were re-run in this report update.
+  \item Identity-mapping gap: the repository history currently exposes the git author names \code{Duong Binh An} and \code{Annwyn}, so the final submission should clearly map those identities to the official member roster if aliases differ.
+  \item Container hardening gap: the Docker images are functional and reproducible, but further hardening such as non-root execution and multi-stage optimization would improve production readiness.
 \end{itemize}
 
 \section{Future Work}
@@ -476,12 +1185,25 @@ The system's main strength is integration. It aligns model output, backend orche
   \item Monitor feature drift, score drift, queue drift, and outcome drift.
   \item Incorporate interpretable transactional features such as merchant, beneficiary, device, geography, and authentication context.
   \item Extend current token-role checks into stronger RBAC, identity integration, and hardened audit retention.
+  \item Add calibration or percentile-based score presentation to reduce misuse of raw score values.
+  \item Expand CI and deployment verification for the full container stack.
+  \item Add analyst productivity and queue-aging analytics.
 \end{itemize}
 
 \section{Conclusion}
 This repository implements a coherent real-time fraud detection system for banking-style transaction decision support. Its core contribution is the integration of machine learning scoring with operational workflow: the system computes an uncalibrated \code{risk_score}, maps it to a \code{risk_tier} and \code{decision_recommendation}, creates an \code{alert} and \code{case} for suspicious transactions, supports analyst investigation, and exposes monitoring and deployment components around that workflow.
 
 The project therefore contributes more than a fraud model. It demonstrates how fraud analytics, backend services, frontend operations, and MLOps tooling can be combined into an end-to-end fraud decision-support system.
+
+\section{Documentation Cleanup Summary}
+This report consolidates the project narrative into a single source of truth. The documentation cleanup achieved the following:
+
+\begin{itemize}
+  \item removed duplicated project narratives that previously existed across multiple Markdown reports
+  \item standardized terminology around \code{risk\_score}, \code{risk\_tier}, \code{decision\_recommendation}, \code{alert}, and \code{case}
+  \item reconciled inconsistent statements about the deployed model by aligning to artifact truth
+  \item reconciled persistence and security status by distinguishing configurable implementation from production hardening
+\end{itemize}
 
 \section*{Implementation Status Matrix}
 \addcontentsline{toc}{section}{Implementation Status Matrix}
@@ -502,12 +1224,66 @@ SQL/Postgres persistence & Implemented (configurable) & Repository path, migrati
 Reason-code explainability & Partially implemented & Heuristic and policy-derived rather than causal \\
 Streaming behavior & Demo-level & Pull-based simulator, not event-bus-backed banking ingestion \\
 In-memory case persistence & Demo-level & Process-bound storage intended for local demo \\
+Runtime deployment verification & Unverified in this update & Deployment assets exist, but the full live stack was not re-run here \\
 Enterprise RBAC/IAM and audit hardening & Future work & Current controls are token-based and limited \\
 Drift detection and automated retraining & Future work & Not implemented \\
+Fairness validation & Future work & Limited by dataset scope and missing protected-attribute fields \\
 Real banking feature enrichment & Future work & Current data source is benchmark-style and anonymized \\
 \bottomrule
 \end{tabular}
 \caption{Implementation status matrix.}
 \end{table}
+
+\appendix
+\section{Presentation and Demo Readiness}
+The presentation rubric evaluates more than whether the repository exists. It evaluates whether the team can explain the system coherently, demonstrate the product smoothly, and answer technical questions with evidence. For that reason, this appendix turns the report into a practical presentation-defense document rather than only a static write-up.
+
+\subsection*{Recommended live demo sequence}
+\begin{enumerate}[leftmargin=1.5em]
+  \item Start with the problem statement: fraud is rare, high-stakes, and operationally constrained by analyst capacity.
+  \item Open \code{/docs} and show that the API is typed, documented, and exposes more than a single prediction endpoint.
+  \item Score one transaction through \code{POST /predict} and explain the difference between \code{risk\_score}, \code{risk\_tier}, and \code{decision\_recommendation}.
+  \item Show that suspicious outcomes create \code{alert} and \code{case} records that can be listed and resolved through workflow endpoints.
+  \item Open the frontend dashboard and demonstrate queue review, case detail, status update, and timeline visibility.
+  \item Show Prometheus or Grafana to prove that the system is observable, not only functional.
+  \item Close by pointing to the current validation evidence: 50 passing tests, 80\% coverage, Docker Compose deployment, and versioned model artifacts.
+\end{enumerate}
+
+\subsection*{Technical deep-dive narrative}
+\begin{itemize}
+  \item Explain the architecture as a pipeline: request validation, scoring, policy mapping, workflow creation, and monitoring.
+  \item Emphasize why the model output is treated as ranking rather than calibrated probability; this is one of the most important technical honesty points in the project.
+  \item Defend the promoted model choice using artifact evidence: logistic regression slightly outperformed the LightGBM challenger on validation PR-AUC and review-tier recall.
+  \item Show that the design is operational, not only predictive: the core value is creating useful review workflows under analyst-capacity constraints.
+  \item Highlight engineering maturity: typed FastAPI schemas, deterministic error handling, token auth, rate limiting, SQL repository option, CI coverage gate, and containerized deployment.
+\end{itemize}
+
+\subsection*{Likely Q\&A prompts and defensible answers}
+\begin{table}[H]
+\small
+\centering
+\begin{tabularx}{\textwidth}{p{0.26\textwidth}p{0.34\textwidth}X}
+\toprule
+Likely question & Defensible answer & Evidence to point at \\
+\midrule
+Why did you choose logistic regression instead of LightGBM? & Because the promoted model is selected by validation PR-AUC first and review-tier recall second under the same top-K policy. Logistic regression performed slightly better on the repository's selection criteria and is simpler to inspect and serve. & Model comparison section, benchmark figures, and \code{model\_selection\_summary.json}. \\
+Why is the threshold so high? & Because the score is used as a ranking signal and the threshold is capacity-driven. The objective is to flag roughly the top 1\% for review and the top 0.2\% for the highest-risk tier, not to mimic a calibrated fraud probability cutoff. & Threshold metadata in \code{model\_info.json} and the decision-logic section of this report. \\
+How do you know the system is reliable? & The repository has unit, data, model, integration, SQL-persistence, and frontend/API smoke tests. The latest verification run completed with 50 passing tests and 80\% source coverage, which matches the CI gate. & Testing section, \code{ci.yml}, and local verification output. \\
+Is this fair or explainable? & The dataset does not support demographic fairness claims, so the report explicitly avoids overstating that. Explainability is provided through SHAP artifacts, feature importance, heuristic reason codes, and human review rather than claiming causal certainty. & Responsible AI section and SHAP figure. \\
+Is this production ready? & It is production-oriented in architecture, but still a course-project system. The repo includes SQL persistence, monitoring, and containerization, but enterprise IAM, drift detection, and regulatory controls remain future work. & Limitations, future work, and deployment sections. \\
+\bottomrule
+\end{tabularx}
+\caption{Presentation-defense prompts aligned to common instructor questions.}
+\end{table}
+
+\section{Submission Hardening Checklist}
+Before final submission and presentation, the team should confirm the following:
+\begin{itemize}
+  \item the final PDF, README, ARCHITECTURE, and CONTRIBUTING documents all tell the same story
+  \item the model artifact version referenced in the report matches the artifact currently committed in \code{artifacts/models/}
+  \item each member can explain at least one owned component in code-level detail
+  \item the demo environment is prepared with API, frontend, and monitoring URLs already known
+  \item commit identities and official course-member names are mapped clearly if aliases differ
+\end{itemize}
 
 \end{document}

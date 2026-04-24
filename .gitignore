@@ -10,6 +10,13 @@ htmlcov/
 coverage.xml
 mlruns/
 .~lock*.docx#
+latex/*.aux
+latex/*.log
+latex/*.out
+latex/*.toc
+latex/*.fls
+latex/*.fdb_latexmk
+latex/*.synctex.gz
 # Large data files - keep only schema/readme
 data/archive/creditcard.csv
 data/raw/creditcard.csv

@@ -2,6 +2,13 @@
 
 Repository: Final_Project_DMM501_Group1
 
+Official team roster:
+
+- Main author: AN Duong Binh
+- Member: Tuyen Le Quang
+- Member: NHI Nguyen Le Hong
+- Instructor: Phd. NGU Huynh Cong Viet
+
 This repository implements a complete fraud decision-support platform for banking transactions.
 
 It combines machine learning, policy-based decisions, analyst workflow APIs, frontend operations, observability, and containerized MLOps deployment.
@@ -120,6 +127,7 @@ Key model design points:
 - Exports deployable model artifacts and metadata.
 - Uses threshold policy for review and high-risk action tiers.
 - Tracks experiments and runtime traffic metrics with MLflow.
+- Current deployed artifact version in `artifacts/models/model_info.json`: `v0002_20260424T083412Z`
 
 Score semantics:
 
@@ -223,28 +231,47 @@ Service URLs:
 - Grafana: <http://localhost:3000>
 - MLflow: <http://localhost:5000>
 
+Demo access tokens configured in the Docker Compose stack:
+
+- Viewer: `viewer-token`
+- Analyst: `analyst-token`
+- Admin: `admin-token`
+
 ## Validation Snapshot
 
 Latest targeted checks in this workspace:
 
-- Unit plus data tests: 14 passed.
-- Integration tests: 17 passed.
+- Full verification command:
+  `./.venv/bin/pytest -q --cov=src --cov-config=.coveragerc --cov-report=term-missing`
+- Latest result: `50 passed`
+- Coverage result: `80%`
 - Docker Compose config validates successfully.
-- MLflow runtime traffic metrics verified in containerized flow.
+- CI coverage gate: `--cov-fail-under=80`
 
 ## Documentation and Report Map
 
 Primary docs:
 
 - [ARCHITECTURE.md](ARCHITECTURE.md)
+- [CONTRIBUTING.md](CONTRIBUTING.md)
+- [MASTER_REPORT.md](MASTER_REPORT.md)
 - [docs/QUICK_START.md](docs/QUICK_START.md)
-- [docs/SYSTEM_SPECIFICATION_DOCUMENT.md](docs/SYSTEM_SPECIFICATION_DOCUMENT.md)
-- [docs/RESPONSIBLE_AI.md](docs/RESPONSIBLE_AI.md)
-- [docs/DEPLOYMENT_REPORT.md](docs/DEPLOYMENT_REPORT.md)
-- [docs/FINAL_DECISION_SUPPORT_UPGRADE_REPORT.md](docs/FINAL_DECISION_SUPPORT_UPGRADE_REPORT.md)
+- [docs/QUICK_ACCESS_GUIDE.md](docs/QUICK_ACCESS_GUIDE.md)
+- [docs/COMPLETE_SYSTEM_SPECIFICATION_EXTRACTED.md](docs/COMPLETE_SYSTEM_SPECIFICATION_EXTRACTED.md)
+- [docs/FULL_PROJECT_REVIEW.md](docs/FULL_PROJECT_REVIEW.md)
+- [docs/SUBMISSION_FINAL_FILE_LIST.md](docs/SUBMISSION_FINAL_FILE_LIST.md)
+- [latex/COMPLETE_FRAUD_DETECTION_REPORT.tex](latex/COMPLETE_FRAUD_DETECTION_REPORT.tex)
+- [latex/COMPLETE_FRAUD_DETECTION_REPORT.pdf](latex/COMPLETE_FRAUD_DETECTION_REPORT.pdf)
 
 ## Notes for Evaluators
+
+- Problem definition, requirements, success metrics, and architecture rationale are consolidated in the final LaTeX report so grading can be done against one coherent narrative.
+- Runtime implementation evidence is visible directly in `src/`, `frontend/`, `deployment/`, `.github/workflows/`, and `artifacts/`.
+- The current repository state is aligned to deployed artifact version `v0002_20260424T083412Z`, including thresholds and model-selection metadata.
+- The strongest grading evidence for engineering quality is the current local verification result: `50 passed` with `80%` source coverage.
+- For the live demo, the cleanest path is: open Swagger docs, score one transaction, inspect generated alert/case records, show analyst workflow in the frontend, then show Prometheus/Grafana/MLflow endpoints.
 
 - This README is intended as a full-project preview for technical and non-technical reviewers.
 - Claims are aligned with implemented code and test evidence.
 - For reliable testing, avoid running local uvicorn and Docker API on the same host port at the same time.
+- Git-author identities currently visible in history are documented in `CONTRIBUTING.md` for contribution review.
